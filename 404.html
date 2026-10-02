@@ -348,11 +348,22 @@ h1{font-size:clamp(40px,7vw,96px);line-height:1;letter-spacing:-.04em;font-weigh
 .exp-position{font-size:13px;color:var(--ink);opacity:.8}
 .exp-date{font:500 12px 'DM Mono',monospace;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;text-align:right}
 .exp-body{padding:4px 0 24px 54px;border-left:1px dashed var(--line);margin-left:18px}
-.exp-summary{margin:0 0 16px;max-width:680px;line-height:1.75;color:#4a463f;font-size:15px}
+.exp-main,.exp-media{min-width:0}
+/* ⚠ 2026-10-01：原来这里写死 max-width:680px —— 无图时右侧留一大片空白、正文提前折行
+   （用户截图：B 区「视觉编排」的「一致」被折到第二行，右边全是空的）。
+   与 C/D/E 统一：无媒体时文字用完整可用宽度；有媒体时才收成两栏。 */
+.exp-summary{margin:0 0 16px;line-height:1.75;color:#4a463f;font-size:15px}
 .exp-hl{margin-top:4px}
 .exp-hl ul{margin:8px 0 0;padding-left:0;list-style:none;display:grid;gap:8px}
 .exp-hl li{padding-left:18px;position:relative;line-height:1.7;font-size:14px;color:#3e3a33}
 .exp-hl li::before{content:'';position:absolute;left:0;top:11px;width:6px;height:1px;background:var(--accent)}
+.exp-media img{width:100%;height:auto;display:block;border-radius:6px;border:1px solid var(--line)}
+/* 有图：文字区 + 媒体区两栏（与 C/D/E 同一套契约：无媒体全宽、有媒体两栏） */
+@media(min-width:900px){
+  .exp-body.has-media{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,var(--exp-pm-w,38%));gap:28px;align-items:start}
+  .exp-body.has-media .exp-main{grid-column:1;grid-row:1}
+  .exp-body.has-media .exp-media{grid-column:2;grid-row:1}
+}
 
 @media(max-width:720px){
   .experience-item summary{grid-template-columns:28px 1fr auto;gap:10px}
@@ -422,7 +433,13 @@ body:not(.ve-embed) .ve-pixel{transition:none}
 .hero .intro{white-space:pre-wrap;margin-top:14px}
 /* 自由图片层：绝对定位于文档坐标的浮层（添加图片功能） */
 .shell{position:relative}
-.ve-free-layer{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:5}
+/* ⚠ overflow:hidden 是「自由图绝不穿过所属区域」的硬兜底（2026-09-28 穿模修复）。
+   JS（app-v3.js → freeAnchoredRect）已经按区域盒等比收口，这里再兜一层：
+   任何没走收口的路径（例如容器还没量出宽度、先按百分比摆的那一帧）也不会画到区域外。
+   ⚠ 排版编辑画布（body.ve-embed）必须放行 overflow —— 八向缩放手柄挂在浮层里、
+   会比图片外扩 7px，裁掉就抓不住了；画布里拖拽本身就会按区域夹取，不需要这一层兜底。 */
+.ve-free-layer{position:absolute;left:0;top:0;right:0;bottom:0;pointer-events:none;z-index:5;overflow:hidden}
+body.ve-embed .ve-free-layer{overflow:visible}
 .ve-host{position:relative}
 .ve-tail-zone{position:relative;min-height:0}
 .ve-free-img{position:absolute;pointer-events:none;user-select:none;display:block}
@@ -533,6 +550,7 @@ body:not(.ve-embed) .ve-pixel{transition:none}
 .ai-project-media{display:flex;flex-direction:column;gap:14px}
 .ai-project-media .ai-project-cover{margin-top:0}
 .ai-project-media .ai-project-shots{margin-top:0}
+.ai-project-media .ai-project-video{width:100%;height:auto;display:block;background:var(--soft);border-radius:6px;margin-top:0}
 @media(min-width:900px){
   .ai-project-body.has-media{
     display:grid;
@@ -542,6 +560,15 @@ body:not(.ve-embed) .ve-pixel{transition:none}
   .ai-project-body.has-media .ai-project-main{grid-column:1;grid-row:1}
   .ai-project-body.has-media .ai-project-side{grid-column:2;grid-row:1}
 }
+
+/* —— 自由摆放媒体的「文字舒展」（2026-10-01，B / C / E 通用）——
+   媒体被自由摆放后，右侧那条媒体栏里该行可能已经空了。app-v3.js 的 ffFreeMediaReflow()
+   会量出每个文字块与**所有媒体**（自由摆放的按落点、留在栏内的按栏内位置）是否同处一行：
+   该行右侧没东西 → 给这块加 .ff-relax，用负 margin 把它拉过预留的媒体栏、恢复完整宽度
+   （用户原话：「哪个检测到没有占用，哪个就可以对应舒展开了」）；
+   该行右侧还有东西（含媒体被拖到文字上）→ 保持收起 / 就是覆盖，不做处理。
+   .ff-relax 只在真实作品集页添加 —— 排版编辑画布里保持「插入即收起」的默认。 */
+.ff-relax{margin-right:calc(-1 * var(--ff-grow,0px))}
 /* role + contribution 内联署名行（2026-09-27 方案 B 定稿，替代原 flex 左右两栏）：
    一段流式文本 = role（强调粗体）+ 明显分隔点 · + contribution（自然衔接，可长可短、可多行）。
    两者都**不限字数、不截断、不固定高度**；pre-wrap 由 [data-field] 属性选择器兜底（见文件下方
@@ -1333,7 +1360,7 @@ html.ve-m-image .project-media-below[data-ve-empty]::before{
 <body>
 <noscript>请启用 JavaScript 以浏览作品集。</noscript>
 <main id="app"></main>
-<script>window.__PUBLIC_VIEWER__=true;window.__PORTFOLIO_DATA__={"profile": {"name": "全诗越", "role": "声音设计 / 音频制作 / AIGC ", "intro": "hello~欢迎来到🎶", "about": "擅长声音编辑软件及录音相关技术，参与过有声书、动画及原创短片声音设计，有5.1及全景声环绕音频制作经验；喜欢探究AIGC、vibe coding，善于在问题场景中挖掘需求并搭建AI辅助工作流；有较强的自主学习能力与逻辑思维，可精准对接需求、灵活调度安排，希望有机会可以一起共事一起成长🙌", "education": ["青岛电影学院     录音艺术学院     GPA:3.7/4.0     2026应届", "校级二等奖学金、CET-4、普通话二甲", "主修课程：影视声音制作、5.1声音制作、同期拾音、录音声学、视听语言、音乐编辑、MIDI及乐理等。"], "skills": ["Protools、Cubase、剪映、达芬奇、Office、Pr、Ps、Python、GitHub、Codex等。"], "highlights": ["5.1多声道混音", "全景声制作", "剪辑", "AI配音", "Vibe Coding"], "contact": {"email": "", "location": "", "github": ""}, "contactLinks": [{"label": "邮箱", "value": "zerontd@163.com"}, {"label": "微信", "value": "Serment_euy"}], "avatar": {"preset": "dino", "src": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2080%2080%22%20width%3D%2280%22%20height%3D%2280%22%20role%3D%22img%22%20aria-label%3D%22%E5%B0%8F%E6%81%90%E9%BE%99%22%3E%3Crect%20x%3D%2216%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3C%2Fsvg%3E", "size": 72}, "publicLinks": [{"label": "GitHub", "value": "https://github.com/zero-sara"}]}, "experience": [{"company": "宝宝巴士", "position": "音频制作", "date": "2026.04-2026.06", "rawMaterial": "宝宝巴士股份有限公司 音频制作 2026.04-2026.06\n项目背景：参与企业有声书音频制作项目，产出立体声与车载全景声成品。\n工作职责：拆解改版需求，拆解改版需求，执行人声、配乐、音效对齐拼接与成片质检，配合完成稿件迭代修改；依托2.0成品项目完成全景声混音制作，搭建立体声转全景声标准化加工流程，并完成分层混音制作；实车复测校验全景声声场效果，记录声道、声场空间音效缺陷并配合后期整改，满足车载终端播出标准。", "summary": "参与企业有声书音频制作项目，产出立体声与车载全景声成品。通过标准化流程实现立体声转全景声混音，确保车载终端播出效果。", "responsibilities": [], "highlights": ["建立车载全景声混音标准化流程，满足终端播出标准", "通过实车复测精准定位声场缺陷，实现高效整改", "拆解改版需求并执行人声、配乐、音效对齐拼接", "搭建立体声转全景声标准化加工流程", "实车复测校验全景声声场效果并整改缺陷"], "structuredContent": {"summary": "参与企业有声书音频制作项目，产出立体声与车载全景声成品。通过标准化流程实现立体声转全景声混音，确保车载终端播出效果。", "responsibilities": ["拆解改版需求并执行人声、配乐、音效对齐拼接", "搭建立体声转全景声标准化加工流程", "实车复测校验全景声声场效果并整改缺陷"], "highlights": ["建立车载全景声混音标准化流程，满足终端播出标准", "通过实车复测精准定位声场缺陷，实现高效整改"]}, "localeKey": "2f7974b8-ad5e-4ed2-aac4-185c7ea89895"}, {"company": "腾讯QQ短视频", "position": "创作者运营", "date": "2024.07-2025.03", "rawMaterial": "深圳市腾讯计算机系统有限公司 腾讯QQ短视频   创作者运营   2024.07--2025.03\n项目背景：参与项目内团队小组，完成组内团队建设、数据维护，通过线上活动、渠道扩展及平台创作者激励进行外团拉新，实现站内新生创作者数量增长，提升平台内容生态优质化、活跃化。\n团队管理：作为组长推行「数据日报+周复盘」机制，通过话术优化培训、案例拆解会提升组员人均单日触达量40%，每期通过不同的特色团队活动提高组员的参与积极度。\n账号推广：根据QQ短视频生态运营机制，深入了解创作者的受众群体与用户需求，合理运用站内运营工具及活动，帮助新入驻创作者起号及引流，平均粉丝量增长5k+。\n全流程运营：通过分析抖音、B站、小红书等主流平台的创作者画像，结合站内用户流量定制精准的触达计划，对外累计触达作者7k+、对内对接300+UGC/PGC创作者（粉丝量1w-60w+)；从政策解读、福利包装到账号冷启动扶持，指定标准化SOP流程，优化作者入驻转化率35%，拉动作者首月内容产出量提升50%。", "structuredContent": {"summary": "负责腾讯QQ短视频平台创作者生态运营，通过数据驱动的团队管理机制和跨平台创作者画像分析，实现新创作者快速起号及平台内容生态活跃度提升。", "responsibilities": ["推行组内数据日报与周复盘机制，提升组员人均单日触达量40%", "定制跨平台创作者触达计划，累计对外触达7k+创作者", "设计标准化SOP流程，优化作者入驻转化率35%并提升首月内容产出量50%"], "highlights": ["平台内全流程运营，辅助40+位创作者账号从0‑1冷启动", "结合创作者所在赛道与差异化定位，起号平均涨粉8k+"]}, "summary": "负责腾讯QQ短视频平台创作者生态运营，通过数据驱动的团队管理机制和跨平台创作者画像分析，实现新创作者快速起号及平台内容生态活跃度提升。", "responsibilities": [], "highlights": ["平台内全流程运营，辅助40+位创作者账号从0‑1冷启动", "结合创作者所在赛道与差异化定位，起号平均涨粉8k+", "推行组内数据日报与周复盘机制，提升组员人均单日触达量40%", "定制跨平台创作者触达计划，累计对外触达7k+创作者", "设计标准化SOP流程，优化作者入驻转化率35%并提升首月内容产出量50%"], "localeKey": "ef5fc5b4-460e-495c-ab3e-2755eeca12c3"}], "projectGroups": [{"id": "original", "title": "Original Production", "description": "原创短片/动画的声音设计"}, {"id": "redesign", "title": "Film Sound Re-design", "description": "电影片段/短片的声音重制  ADR、Foley、声音设计及5.1混音等"}, {"id": "music", "title": "Music / MV", "description": "音乐与影像制作"}, {"id": "other", "title": "Other Works", "description": "其他类型项目与现场录音工作"}], "projects": [{"name": "《未竟之春》", "groupId": "original", "date": "2025.06--2025.09", "role": "声音指导/声音设计", "rawMaterial": "短片《未竟之春》                      声音指导/声音后期                     2025.06--2025.09\n项目介绍：短片声音制作，从前期堪景及同期录音至后期全流程参与，最终完成声音设计并5.1环绕混音落地。\n核心职责：全程参与影片拍摄及负责同期录音、现场收音设备调试，确保演员台词、现场环境音清晰收录；后期声音设计中根据剧情节奏与场景情绪，创作适配音效，搭配配乐等多层进行声像设计及混录，最终制作5.1环绕声道音落地。", "summary": "全流程参与短片《未竟之春》声音制作，通过前期堪景同期录音与后期5.1环绕混音实现声像设计，突出环境音与台词的清晰度及情绪节奏的声效匹配。", "keyWork": ["同期录音", "声像设计", "5.1混音"], "highlights": ["全程参与影片拍摄及同期录音，确保演员台词与环境音清晰收录", "基于剧情节奏创作适配音效，实现多层声像设计与5.1环绕混音落地"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "全流程参与短片《未竟之春》声音制作，通过前期堪景同期录音与后期5.1环绕混音实现声像设计，突出环境音与台词的清晰度及情绪节奏的声效匹配。", "keyWork": ["同期录音", "声像设计", "5.1混音"], "highlights": ["全程参与影片拍摄及同期录音，确保演员台词与环境音清晰收录", "基于剧情节奏创作适配音效，实现多层声像设计与5.1环绕混音落地"]}, "company": "原创短片", "type": "原创短片", "localeKey": "516ed0a1-d93c-4deb-b7eb-246b52c2157e"}, {"name": "《放生红烧鱼》", "groupId": "original", "date": "2026.05--2026.06", "role": "声音设计", "rawMaterial": "《放生红烧鱼》                       混录                     2026.05--2026.06\n项目介绍：动画短片声音后期，创新结合AI多模态技术优化配音流程，完成方言对白制作与全片5.1环绕声混音全流程制作。\n核心职责：结合可灵AI生成带微表情、口型与肢体动作的角色表演画面，提取画面原生情绪作为音频创作锚点；本地部署VoxCPM音频模型，完成情绪化四川话对白的批量AI合成与精准画音时序适配；参与短片对白、音效、声场搭建，完成全片5.1环绕声混录与输出。\n项目成果：搭建视觉表演联动AI配音的协同制作流程，改善传统TTS机械感强、缺乏情绪、代入感弱等缺陷；实现低成本、高效率的方言配音量产，最终交付声场层次清晰、空间声学真实的标准化5.1环绕声动画成片。", "summary": "动画短片《放生红烧鱼》采用AI多模态技术优化方言配音流程，实现情绪化四川话对白与全片5.1环绕声混音的标准化制作。", "keyWork": ["AI配音", "方言对白制作", "5.1环绕声混录"], "highlights": ["通过可灵AI生成带微表情的表演画面，提取原生情绪作为音频创作锚点，解决传统TTS机械感强的问题", "本地部署VoxCPM模型实现四川话对白批量合成，提升方言配音量产效率"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "动画短片《放生红烧鱼》采用AI多模态技术优化方言配音流程，实现情绪化四川话对白与全片5.1环绕声混音的标准化制作。", "keyWork": ["AI配音", "方言对白制作", "5.1环绕声混录"], "highlights": ["通过可灵AI生成带微表情的表演画面，提取原生情绪作为音频创作锚点，解决传统TTS机械感强的问题", "本地部署VoxCPM模型实现四川话对白批量合成，提升方言配音量产效率"]}, "company": "动画短片", "type": "动画短片", "localeKey": "af6f56ff-0e31-495f-8d4f-135716e03491"}, {"name": "《待春归》", "groupId": "original", "date": "2026.05--2026.06", "role": "声音设计", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "动画短片", "type": "动画短片", "localeKey": "397f584c-c31c-45a8-9c5d-417ed3772ade"}, {"name": "《路》", "groupId": "original", "date": "2025.02--2025.05", "role": "声音设计", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "原创短片", "type": "原创短片", "localeKey": "22c9cc40-2b30-4ae0-bc82-57b045c92a95"}, {"name": "《少年的你》", "groupId": "redesign", "date": "2024.12--2025.01", "role": "配音指导/声音后期", "rawMaterial": "影视声音《少年的你》（片段）   统筹/配音指导/声音后期           2024.12--2025.01\n项目介绍：选取电影《少年的你》中具有强烈戏剧张力的片段，通过“声音解构与重构”的方式进行声音重制，带领团队完成录音、拟音、声音设 vb0计、混音等工作。\n工作职责：统筹项目全流程，指导配音演员的台词节奏、语气和情感表达；主导声音设计方向，把控多重素材整体的协调性，负责声音的后期制作及最终混音。\n项目成果：入围第四届“聲動杯”学院奖；获得“声动五四 音传青春”联展最佳作品奖；通过对影片片段的声音重制，进一步掌握影视、声音制作的全流程技术，加强声音与画面的结合创作能力。", "summary": "对电影《少年的你》中高戏剧张力片段进行声音重制，带领团队完成录音、拟音、声音设计及混音全流程。", "keyWork": ["配音指导", "拟音", "终混"], "highlights": ["指导配音演员台词节奏与情感表达", "进行影片片段声音重制及部分声音设计方向把控", "入围‘聲動杯’学院奖", "获得‘声动五四 音传青春’联展最佳作品奖"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "对电影《少年的你》中高戏剧张力片段进行声音重制，带领团队完成录音、拟音、声音设计及混音全流程。", "keyWork": ["配音指导", "拟音", "终混"], "highlights": ["指导配音演员台词节奏与情感表达", "进行影片片段声音重制及部分声音设计方向把控", "入围‘聲動杯’学院奖", "获得‘声动五四 音传青春’联展最佳作品奖"]}, "company": "电影片段", "type": "电影片段", "aiDraft": {"summary": "对电影《少年的你》中高戏剧张力片段进行声音重制，带领团队完成录音、拟音、声音设计及混音全流程。", "keyWork": ["ADR", "拟音", "终混"], "highlights": ["指导配音演员台词节奏与情感表达", "进行影片片段声音重制及部分声音设计方向把控", "入围‘聲動杯’学院奖", "获得‘声动五四 音传青春’联展最佳作品奖"], "role": "配音指导/声音后期"}, "localeKey": "ec9feb50-278a-4a9f-93d4-5770703848e5"}, {"name": "《全球风暴》", "groupId": "redesign", "date": "2025.03--2025.04", "role": "声音后期", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "电影片段", "type": "电影片段", "localeKey": "49de6b17-64fc-49b9-99cc-06e434474a2f"}, {"name": "《神之浩劫》", "groupId": "redesign", "date": "2024.12--2025.01", "role": "声音后期", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "CG短片", "type": "CG短片", "localeKey": "bca73157-a64c-413b-a1c7-52ddb840e56e"}, {"name": "《不一样》", "groupId": "music", "date": "2024.11--2025.01", "role": "导演/剪辑/混音", "rawMaterial": "MV《不一样》   导演/编剧/剪辑/声音后期   2024.11--2025.01\n项目介绍：围绕群像合唱的歌曲《不一样》开展MV创作，自主创意构思剧情、统筹拍摄并进行剪辑，同时完成进棚录歌及完成其声音后期制作。\n工作职责：担任项目总负责人，全方面统筹MV创作的全流程规划；完成MV剧情脚本创作、拍摄设计、道具筹备等工作；参与歌曲中的部分演唱，指导团队成员并完成分轨录音；进行声音后期，完成伴奏及贴唱的优化，使音乐与拍摄画面更好的实现融合，提升作品整体的听觉体验。\n项目成果：入围第四届“聲動杯”学院奖；产出完整的《不一样》MV作品，涵盖剧情、影像、声音全环节，实现从创意策划到成品的落地，提升多环节多领域的创作与实操能力。", "summary": "围绕群像合唱歌曲《不一样》创作的MV，通过自主构思剧情、统筹拍摄与剪辑，同时完成歌曲录音及声音后期制作，实现从创意到成品的全流程落地。", "keyWork": ["创作", "拍摄", "统筹", "录音"], "highlights": ["统筹MV全流程规划与执行落地", "完成剧情脚本创作与拍摄设计", "参与并指导团队演唱录制", "优化伴奏与贴唱，提升混音及音画整体效果"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "围绕群像合唱歌曲《不一样》创作的MV，通过自主构思剧情、统筹拍摄与剪辑，同时完成歌曲录音及声音后期制作，实现从创意到成品的全流程落地。", "keyWork": ["创作", "拍摄", "统筹", "录音"], "highlights": ["统筹MV全流程规划与执行落地", "完成剧情脚本创作与拍摄设计", "参与并指导团队演唱录制", "优化伴奏与贴唱，提升混音及音画整体效果"]}, "company": "MV", "type": "MV", "localeKey": "f20794b3-5ef3-4672-8dd0-1a8cdc5da36d"}, {"name": "《小黄人越狱计划》", "groupId": "music", "date": "2024.6", "role": "音乐编辑", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "company": "电影片段", "showDetails": false, "summary": "", "keyWork": [], "highlights": [], "type": "电影片段", "localeKey": "e0ee924f-1d0a-402a-a027-f070bea405e7"}, {"name": "RM 音视频质量优化", "groupId": "other", "date": "2026.03--2026.08", "role": "数据标注", "rawMaterial": "RM 音视频质量优化                      数据标注                   2026.03--2026.8\n项目背景：负责 AI 生成音视频内容的质量评估与数据标注工作，参与标注策略对音频整体质量与多维度指标进行标准化打分，构建高质量训练数据集，支撑 AI 音频生成模型的迭代优化。\n工作职责：对 AI 生成音频进行整体质量评分与多维度指标标注（音质、清晰度、自然度、完整性、异常音等）；执行 Pointwise 标注规范，完成音频质量标签标注与数据校验；参与标注策略优化，确保标注结果一致性与准确性；对标注数据进行整理、复核，输出高质量训练数据用于模型迭代。\n项目成果：提升数据标准化与模型迭代效率，标注数据准确率达 85% 以上，有效数据利用率高。\n", "structuredContent": {"summary": "负责AI生成音视频内容的质量评估与数据标注，通过多维度指标标准化打分构建高质量训练数据集，支撑AI音频生成模型迭代优化。", "keyWork": ["音质评分", "多维度标注", "数据校验", "策略优化"], "highlights": ["通过Pointwise标注规范实现音频质量标签标准化，标注数据准确率达85%以上"]}, "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "aiDraft": {"summary": "负责AI生成音视频内容的质量评估与数据标注，通过多维度指标标准化打分构建高质量训练数据集，支撑AI音频生成模型迭代优化。", "keyWork": ["对AI生成音频进行整体质量评分与多维度指标标注", "执行Pointwise标注规范完成质量标签标注与数据校验", "多维度指标标准化打分支撑AI模型迭代优化", "总质检数据准确率达85%以上，高有效数据利用率与准确性"], "highlights": [], "role": ""}, "summary": "负责AI生成音视频内容的质量评估与数据标注，通过多维度指标标准化打分构建高质量训练数据集，支撑AI音频生成模型迭代优化。", "keyWork": ["音质评分", "多维度标注", "数据校验", "策略优化"], "highlights": ["通过Pointwise标注规范实现音频质量标签标准化，标注数据准确率达85%以上"], "company": "字节项目", "type": "字节项目", "localeKey": "d2fc0e20-7ae7-43df-bf4a-114e0aa1d262"}, {"name": "《雪夜迷杀》", "groupId": "other", "role": "录音助理/无线", "date": "2025.11--2026.01", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "电影", "type": "电影", "localeKey": "25ff44cd-4f5f-44cb-be9a-c1769e55ee42"}, {"name": "《恽代英》", "groupId": "other", "role": "音频制作", "date": "2024.11", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "有声书", "type": "有声书", "localeKey": "92c4ed5d-6be0-4b1b-bc0b-69075e2a3bcd"}, {"name": "《雁灰了》", "groupId": "other", "role": "录音师", "date": "2024.08", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "原创短片", "type": "原创短片", "localeKey": "f5e4bb38-1773-4038-bb46-689060ecbfc4"}, {"name": "《陌生》", "groupId": "other", "role": "录音师", "date": "2024.08", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "原创短片", "type": "原创短片", "localeKey": "74000b3b-57fc-470a-9a3c-b67e8fbeedc9"}], "showreel": {"projects": [{"id": "sr_main", "name": "Sound Design", "role": "", "media": {"url": "media/showreel/showreel-web-web.mp4", "name": "showreel-web-web.mp4", "type": "video/mp4"}, "externalVideoUrl": "", "chapters": [{"role": "声音指导/声音设计", "end": "00:00:19.078", "title": "短片《未竟之春》", "start": "00:00:00.000", "projectId": 0}, {"role": "声音制作", "end": "00:01:02.314", "title": "待春归", "start": "00:00:20.625", "projectId": 2}, {"role": "声音设计", "end": "00:01:35.126", "title": "《放生红烧鱼》", "start": "00:01:02.395", "projectId": 1}, {"role": "配音指导/声音后期", "end": "00:02:43.863", "title": "《少年的你》（片段）", "start": "00:01:35.437", "projectId": 4}, {"role": "声音后期", "end": "00:03:15.517", "title": "全球风暴", "start": "00:02:43.863", "projectId": 5}, {"projectId": 6, "title": "《神之浩劫》", "role": "声音后期", "start": "00:03:15.567", "end": "00:03:58.344"}, {"projectId": 8, "title": "《小黄人越狱计划》", "role": "音乐编辑", "start": "00:03:58.455", "end": "00:04:27.129"}, {"projectId": 3, "title": "《路》", "role": "声音设计", "start": "00:04:27.296", "end": "00:04:52.381"}, {"projectId": 7, "title": "《不一样》", "role": "导演/剪辑/混音", "start": "00:04:52.309", "end": "00:05:34.792"}, {"projectId": 11, "title": "《恽代英》", "role": "音频制作", "start": "00:04:52.309", "end": "00:05:34.792"}]}]}, "aiVoices": {"title": "AI Voices", "summary": "", "sections": {"Origin": "", "Problem": "", "VoxCPM2": "", "Product Design": "", "Voice Design": "", "Voice Clone": "", "Ultimate Design": "", "Audio Processing": ""}, "media": {"desktop": null, "mobile": null, "workflow": null, "demo": null}, "liveDemoUrl": "", "githubUrl": "", "projects": [{"name": "FolioFrame", "role": "开发者", "summary": "面向创作者的本地优先作品集编辑与发布工具，整合内容管理、可视化排版、多媒体展示、模板复用与网页发布，帮助用户从内容整理到最终展示完成完整的作品集制作流程。", "tech": ["Python", "JavaScript", "HTML / CSS", "GrapesJS", "Ollama / Qwen3"], "highlights": ["Local-first", "可视化编辑", "模板系统", "多媒体展示", "一体化发布"], "githubUrl": "", "liveDemoUrl": "", "media": {"image": null, "screenshots": []}, "logo": {"url": "media/ai-voices/ff-5.png", "pos": "before"}, "positioning": "作品集制作与发布", "contribution": "都完成"}, {"name": "Loom Tone", "role": "AI Voice / Audio Developer", "summary": "基于 VoxCPM2 的本地 AI 语音设计与生成工具，面向声音创作者整合 Voice Design、Voice Clone 与音频后期处理，支持通过自然语言控制音色、年龄、情绪与表达，并将声音生成、空间效果与音质处理整合于统一的轻量化 Web 工作流中。", "tech": ["Python  ", "FastAPI ", "JavaScript", "HTML/CSS", " VoxCPM2", "llama.cpp", "GGUF", "faster-whisper ", "FFmpeg", "NumPy ", "SciPy"], "highlights": ["本地 AI 语音生成与 Voice Design 工作流", "Voice Clone 与参考音频驱动的声音生成", "自然语言驱动的音色、年龄与情绪控制", "语音生成与混响、降噪、音质增强等后处理集成", "Raw → Expression → Processed 分层音频处理架构"], "githubUrl": "", "liveDemoUrl": "", "media": {"image": null, "screenshots": []}, "contribution": "独立完成从 VoxCPM2 本地推理、FastAPI Web 应用、语音生成与控制逻辑，到音频后处理、质量检查及本地运行环境的整体设计与开发，持续通过实际音频测试验证语音控制效果与处理链路。", "positioning": "AI 语音设计与生成"}]}, "styles": {"text": "#161616", "background": "#e1fef9", "accent": "#83ddfb", "titleSize": "56", "bodySize": "16", "weight": "400", "font": "Noto Sans SC", "spacing": "medium"}, "media": {}, "settings": {"version": 3, "translationMode": "direct"}, "resume": null, "chapter": {"showreel": {"chapters": {"0": {"role": "声音指导 / 声音设计"}}}}, "theme": {"mode": "light", "preset": "light-02"}, "design": {"theme": {"mode": "light", "preset": "light-02"}, "typography": {"text": "#161616", "background": "#e1fef9", "accent": "#83ddfb", "titleSize": "56", "bodySize": "16", "weight": "400", "font": "Noto Sans SC", "spacing": "medium"}, "layout": {}, "components": {}}, "visualEditor": {"project": null, "savedAt": null}, "schemaVersion": 2, "sectionTitles": {"works": "Experience", "aiVoices": "AI Project", "experience": "Works"}, "contactLinks": [{"value": "zerontd@163.com"}], "sections": ["about", "experience", "works", "showreel", "aiVoices"], "blocks": [], "about": "C:\\fakepath\\folioframe-mark-96.png", "works": "after", "sectionTitleTranslations": {"en": {}}, "localizedContent": {"en": {"projects": {"516ed0a1-d93c-4deb-b7eb-246b52c2157e": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:59b5ef2da455400beae560b631b56680dd94c67983ea08534398b9d7c591d4ab", "status": "unconfigured"}}, "af6f56ff-0e31-495f-8d4f-135716e03491": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:7f1854c3aa77d7cd558ce1b3b8de460e1cf6fa5e6bc0445f11c99a95fa000b24", "status": "unconfigured"}}, "397f584c-c31c-45a8-9c5d-417ed3772ade": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "22c9cc40-2b30-4ae0-bc82-57b045c92a95": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "ec9feb50-278a-4a9f-93d4-5770703848e5": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:426645565f2dd1213eaa304f192fe5cbd54d15ca8e6e15780a331fbe3872dcd2", "status": "unconfigured"}}, "49de6b17-64fc-49b9-99cc-06e434474a2f": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "bca73157-a64c-413b-a1c7-52ddb840e56e": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "f20794b3-5ef3-4672-8dd0-1a8cdc5da36d": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:4113cd1aff86417cd5ef7a74e59316699b81cc404ba12b0a9f1f8562e1cdcbd6", "status": "unconfigured"}}, "e0ee924f-1d0a-402a-a027-f070bea405e7": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "d2fc0e20-7ae7-43df-bf4a-114e0aa1d262": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:761539c338a1ab56cec94367d2847665b2c42e2c41d1acdef67f52d86aae1e68", "status": "unconfigured"}}, "25ff44cd-4f5f-44cb-be9a-c1769e55ee42": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "92c4ed5d-6be0-4b1b-bc0b-69075e2a3bcd": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "f5e4bb38-1773-4038-bb46-689060ecbfc4": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "74000b3b-57fc-470a-9a3c-b67e8fbeedc9": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "43dd96f8-cb8c-4f20-a231-f449732751d1": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:5e1397ddfb6181c042123f4bd5061964184d6c9d2f03a5ce8c4f4b5435d1b83f", "status": "unconfigured"}}}, "experience": {"2f7974b8-ad5e-4ed2-aac4-185c7ea89895": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:17ccd55e2716e06a37311876e216f86a143a77b761aba6ce66a67aec0b59db1e", "status": "unconfigured"}}, "ef5fc5b4-460e-495c-ab3e-2755eeca12c3": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:5036ed31cdb3a716eb61156116c7975ba6db20c08740a80f616a85dd2e40909d", "status": "unconfigured"}}}}}, "sectionLogos": {}, "localePins": {"staticText.eyebrow-selected-works": 1, "aiVoices.projects.0.name": 1, "aiVoices.projects.0.tech": 1, "aiVoices.projects.0.githubUrl": 1}};window.__PORTFOLIO_DESIGN__={"schemaVersion": 2, "designVersion": 2513, "savedAt": "2026-09-27T11:18:58Z", "theme": {"mode": "light", "preset": "light-02"}, "imgSizes": {"projects.1.media": {"widthPct": 18}, "projects.0.media": {"widthPct": 18}}, "spacing": {"topSpace": 160, "heroNameGap": 7, "heroPad": 0, "metaTop": 40, "dirGap": 42, "entryGap": 0, "footerTop": 437, "footerBottom": 20}, "pixel": {"size": 134, "x": null, "y": null, "scale": 1, "xPct": 1, "yPct": 0.48554913294797686}, "inlineStyles": {}, "textStyles": {"aiVoices.projects.0.name": {"fontSize": "23px"}, "aiVoices.projects.1.name": {"fontSize": "23px"}, "projects.0.name": {"fontSize": "18px"}, "projects.1.name": {"fontSize": "18px"}, "projects.2.name": {"fontSize": "16px"}, "projects.3.name": {"fontSize": "16px"}, "projects.4.name": {"fontSize": "18px"}, "projects.5.name": {"fontSize": "16px"}, "projects.6.name": {"fontSize": "16px"}, "projects.7.name": {"fontSize": "18px"}, "projects.9.name": {"fontSize": "18px"}, "showreel.projects.0.name": {"fontSize": "20px"}}, "mediaLayout": {"projects.0.media": {"belowAlign": "center", "symmetric": true}}, "mediaItems": {"projects.0.media#image1": {"order": 1, "place": "below", "widthPct": 38, "perRow": 4}}, "images": [{"id": "img_1790106589642", "src": "media/uploads/fff-1.png", "aKind": "item", "aSection": "aiVoices", "aItem": "aiVoices.projects.0", "aLabel": "FolioFrame", "xPct": 0.6573751125112511, "yPct": 0.7350621549554963, "wPct": 0.31874437443744374, "aspect": 4.846877673224979, "yMode": "h"}, {"id": "bound_1790479110715", "src": "media/ai-voices/ff-6.png", "sourcePath": "aiVoices.projects.1.media.screenshots.0", "inplace": true, "aKind": "item", "aSection": "aiVoices", "aItem": "aiVoices.projects.1", "aLabel": "Loom Tone", "xPct": 0.6792374549954996, "yPct": 0.07598728622862286, "wPct": 0.18459580333033304, "aspect": 0.9665316642120766}], "staticText": {"eyebrow-selected-works": "see you"}, "sectionOrder": ["about", "experience", "works", "showreel", "aiVoices"], "imgPos": {"projects.0.media#image1": {"place": "free"}, "aiVoices.projects.1.media.screenshots.0": {"place": "free"}}, "displayZones": {"hero": ["eyebrow", "name", "role", "intro"], "secondary": ["highlights", "contactLinks", "publicLinks", "skills"]}};</script>
+<script>window.__PUBLIC_VIEWER__=true;window.__PORTFOLIO_DATA__={"profile": {"name": "全诗越", "role": "声音设计 / 音频制作 / AIGC ", "intro": "hello~欢迎来到🎶", "about": "擅长声音编辑软件及录音相关技术，参与过有声书、动画及原创短片声音设计，有5.1及全景声环绕音频制作经验；喜欢探究AIGC、vibe coding，善于在问题场景中挖掘需求并搭建AI辅助工作流；有较强的自主学习能力与逻辑思维，可精准对接需求、灵活调度安排，希望有机会可以一起共事一起成长🙌", "education": ["青岛电影学院     录音艺术学院     GPA:3.7/4.0     2026应届", "校级二等奖学金、CET-4、普通话二甲", "主修课程：影视声音制作、5.1声音制作、同期拾音、录音声学、视听语言、音乐编辑、MIDI及乐理等。"], "skills": ["Protools、Cubase、剪映、达芬奇、Office、Pr、Ps、Python、GitHub、Codex等。"], "highlights": ["5.1多声道混音", "全景声制作", "剪辑", "AI配音", "Vibe Coding"], "contact": {"email": "", "location": "", "github": ""}, "contactLinks": [{"label": "邮箱", "value": "zerontd@163.com"}, {"label": "微信", "value": "Serment_euy"}], "avatar": {"preset": "dino", "src": "data:image/svg+xml;utf8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2080%2080%22%20width%3D%2280%22%20height%3D%2280%22%20role%3D%22img%22%20aria-label%3D%22%E5%B0%8F%E6%81%90%E9%BE%99%22%3E%3Crect%20x%3D%2216%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%220%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%228%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2216%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2224%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2232%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2240%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%23bfe3a0%22%2F%3E%3Crect%20x%3D%2256%22%20y%3D%2248%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2224%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2232%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%237a3a30%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2256%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%228%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2240%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3Crect%20x%3D%2248%22%20y%3D%2264%22%20width%3D%228%22%20height%3D%228%22%20fill%3D%22%231c2433%22%2F%3E%3C%2Fsvg%3E", "size": 72}, "publicLinks": [{"label": "GitHub", "value": "https://github.com/zero-sara"}]}, "experience": [{"company": "宝宝巴士", "position": "音频制作", "date": "2026.04-2026.06", "rawMaterial": "宝宝巴士股份有限公司 音频制作 2026.04-2026.06\n项目背景：参与企业有声书音频制作项目，产出立体声与车载全景声成品。\n工作职责：拆解改版需求，拆解改版需求，执行人声、配乐、音效对齐拼接与成片质检，配合完成稿件迭代修改；依托2.0成品项目完成全景声混音制作，搭建立体声转全景声标准化加工流程，并完成分层混音制作；实车复测校验全景声声场效果，记录声道、声场空间音效缺陷并配合后期整改，满足车载终端播出标准。", "summary": "参与企业有声书音频制作项目，产出立体声与车载全景声成品。通过标准化流程实现立体声转全景声混音，确保车载终端播出效果。", "responsibilities": [], "highlights": ["建立车载全景声混音标准化流程，满足终端播出标准", "通过实车复测精准定位声场缺陷，实现高效整改", "拆解改版需求并执行人声、配乐、音效对齐拼接", "搭建立体声转全景声标准化加工流程", "实车复测校验全景声声场效果并整改缺陷"], "structuredContent": {"summary": "参与企业有声书音频制作项目，产出立体声与车载全景声成品。通过标准化流程实现立体声转全景声混音，确保车载终端播出效果。", "responsibilities": ["拆解改版需求并执行人声、配乐、音效对齐拼接", "搭建立体声转全景声标准化加工流程", "实车复测校验全景声声场效果并整改缺陷"], "highlights": ["建立车载全景声混音标准化流程，满足终端播出标准", "通过实车复测精准定位声场缺陷，实现高效整改"]}, "localeKey": "2f7974b8-ad5e-4ed2-aac4-185c7ea89895"}, {"company": "腾讯QQ短视频", "position": "创作者运营", "date": "2024.07-2025.03", "rawMaterial": "深圳市腾讯计算机系统有限公司 腾讯QQ短视频   创作者运营   2024.07--2025.03\n项目背景：参与项目内团队小组，完成组内团队建设、数据维护，通过线上活动、渠道扩展及平台创作者激励进行外团拉新，实现站内新生创作者数量增长，提升平台内容生态优质化、活跃化。\n团队管理：作为组长推行「数据日报+周复盘」机制，通过话术优化培训、案例拆解会提升组员人均单日触达量40%，每期通过不同的特色团队活动提高组员的参与积极度。\n账号推广：根据QQ短视频生态运营机制，深入了解创作者的受众群体与用户需求，合理运用站内运营工具及活动，帮助新入驻创作者起号及引流，平均粉丝量增长5k+。\n全流程运营：通过分析抖音、B站、小红书等主流平台的创作者画像，结合站内用户流量定制精准的触达计划，对外累计触达作者7k+、对内对接300+UGC/PGC创作者（粉丝量1w-60w+)；从政策解读、福利包装到账号冷启动扶持，指定标准化SOP流程，优化作者入驻转化率35%，拉动作者首月内容产出量提升50%。", "structuredContent": {"summary": "负责腾讯QQ短视频平台创作者生态运营，通过数据驱动的团队管理机制和跨平台创作者画像分析，实现新创作者快速起号及平台内容生态活跃度提升。", "responsibilities": ["推行组内数据日报与周复盘机制，提升组员人均单日触达量40%", "定制跨平台创作者触达计划，累计对外触达7k+创作者", "设计标准化SOP流程，优化作者入驻转化率35%并提升首月内容产出量50%"], "highlights": ["平台内全流程运营，辅助40+位创作者账号从0‑1冷启动", "结合创作者所在赛道与差异化定位，起号平均涨粉8k+"]}, "summary": "负责腾讯QQ短视频平台创作者生态运营，通过数据驱动的团队管理机制和跨平台创作者画像分析，实现新创作者快速起号及平台内容生态活跃度提升。", "responsibilities": [], "highlights": ["平台内全流程运营，辅助40+位创作者账号从0‑1冷启动", "结合创作者所在赛道与差异化定位，起号平均涨粉8k+", "推行组内数据日报与周复盘机制，提升组员人均单日触达量40%", "定制跨平台创作者触达计划，累计对外触达7k+创作者", "设计标准化SOP流程，优化作者入驻转化率35%并提升首月内容产出量50%"], "localeKey": "ef5fc5b4-460e-495c-ab3e-2755eeca12c3"}], "projectGroups": [{"id": "original", "title": "Original Production", "description": "原创短片/动画的声音设计"}, {"id": "redesign", "title": "Film Sound Re-design", "description": "电影片段/短片的声音重制  ADR、Foley、声音设计及5.1混音等"}, {"id": "music", "title": "Music / MV", "description": "音乐与影像制作"}, {"id": "other", "title": "Other Works", "description": "其他类型项目与现场录音工作"}], "projects": [{"name": "《未竟之春》", "groupId": "original", "date": "2025.06--2025.09", "role": "声音指导/声音设计", "rawMaterial": "短片《未竟之春》                      声音指导/声音后期                     2025.06--2025.09\n项目介绍：短片声音制作，从前期堪景及同期录音至后期全流程参与，最终完成声音设计并5.1环绕混音落地。\n核心职责：全程参与影片拍摄及负责同期录音、现场收音设备调试，确保演员台词、现场环境音清晰收录；后期声音设计中根据剧情节奏与场景情绪，创作适配音效，搭配配乐等多层进行声像设计及混录，最终制作5.1环绕声道音落地。", "summary": "全流程参与短片《未竟之春》声音制作，通过前期堪景同期录音与后期5.1环绕混音实现声像设计，突出环境音与台词的清晰度及情绪节奏的声效匹配。", "keyWork": ["同期录音", "声像设计", "5.1混音"], "highlights": ["全程参与影片拍摄及同期录音，确保演员台词与环境音清晰收录", "基于剧情节奏创作适配音效，实现多层声像设计与5.1环绕混音落地"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "全流程参与短片《未竟之春》声音制作，通过前期堪景同期录音与后期5.1环绕混音实现声像设计，突出环境音与台词的清晰度及情绪节奏的声效匹配。", "keyWork": ["同期录音", "声像设计", "5.1混音"], "highlights": ["全程参与影片拍摄及同期录音，确保演员台词与环境音清晰收录", "基于剧情节奏创作适配音效，实现多层声像设计与5.1环绕混音落地"]}, "company": "原创短片", "type": "原创短片", "localeKey": "516ed0a1-d93c-4deb-b7eb-246b52c2157e"}, {"name": "《放生红烧鱼》", "groupId": "original", "date": "2026.05--2026.06", "role": "声音设计", "rawMaterial": "《放生红烧鱼》                       混录                     2026.05--2026.06\n项目介绍：动画短片声音后期，创新结合AI多模态技术优化配音流程，完成方言对白制作与全片5.1环绕声混音全流程制作。\n核心职责：结合可灵AI生成带微表情、口型与肢体动作的角色表演画面，提取画面原生情绪作为音频创作锚点；本地部署VoxCPM音频模型，完成情绪化四川话对白的批量AI合成与精准画音时序适配；参与短片对白、音效、声场搭建，完成全片5.1环绕声混录与输出。\n项目成果：搭建视觉表演联动AI配音的协同制作流程，改善传统TTS机械感强、缺乏情绪、代入感弱等缺陷；实现低成本、高效率的方言配音量产，最终交付声场层次清晰、空间声学真实的标准化5.1环绕声动画成片。", "summary": "动画短片《放生红烧鱼》采用AI多模态技术优化方言配音流程，实现情绪化四川话对白与全片5.1环绕声混音的标准化制作。", "keyWork": ["AI配音", "方言对白制作", "5.1环绕声混录"], "highlights": ["通过可灵AI生成带微表情的表演画面，提取原生情绪作为音频创作锚点，解决传统TTS机械感强的问题", "本地部署VoxCPM模型实现四川话对白批量合成，提升方言配音量产效率"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "动画短片《放生红烧鱼》采用AI多模态技术优化方言配音流程，实现情绪化四川话对白与全片5.1环绕声混音的标准化制作。", "keyWork": ["AI配音", "方言对白制作", "5.1环绕声混录"], "highlights": ["通过可灵AI生成带微表情的表演画面，提取原生情绪作为音频创作锚点，解决传统TTS机械感强的问题", "本地部署VoxCPM模型实现四川话对白批量合成，提升方言配音量产效率"]}, "company": "动画短片", "type": "动画短片", "localeKey": "af6f56ff-0e31-495f-8d4f-135716e03491"}, {"name": "《待春归》", "groupId": "original", "date": "2026.05--2026.06", "role": "声音设计", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "动画短片", "type": "动画短片", "localeKey": "397f584c-c31c-45a8-9c5d-417ed3772ade"}, {"name": "《路》", "groupId": "original", "date": "2025.02--2025.05", "role": "声音设计", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "原创短片", "type": "原创短片", "localeKey": "22c9cc40-2b30-4ae0-bc82-57b045c92a95"}, {"name": "《少年的你》", "groupId": "redesign", "date": "2024.12--2025.01", "role": "配音指导/声音后期", "rawMaterial": "影视声音《少年的你》（片段）   统筹/配音指导/声音后期           2024.12--2025.01\n项目介绍：选取电影《少年的你》中具有强烈戏剧张力的片段，通过“声音解构与重构”的方式进行声音重制，带领团队完成录音、拟音、声音设 vb0计、混音等工作。\n工作职责：统筹项目全流程，指导配音演员的台词节奏、语气和情感表达；主导声音设计方向，把控多重素材整体的协调性，负责声音的后期制作及最终混音。\n项目成果：入围第四届“聲動杯”学院奖；获得“声动五四 音传青春”联展最佳作品奖；通过对影片片段的声音重制，进一步掌握影视、声音制作的全流程技术，加强声音与画面的结合创作能力。", "summary": "对电影《少年的你》中高戏剧张力片段进行声音重制，带领团队完成录音、拟音、声音设计及混音全流程。", "keyWork": ["配音指导", "拟音", "终混"], "highlights": ["指导配音演员台词节奏与情感表达", "进行影片片段声音重制及部分声音设计方向把控", "入围‘聲動杯’学院奖", "获得‘声动五四 音传青春’联展最佳作品奖"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "对电影《少年的你》中高戏剧张力片段进行声音重制，带领团队完成录音、拟音、声音设计及混音全流程。", "keyWork": ["配音指导", "拟音", "终混"], "highlights": ["指导配音演员台词节奏与情感表达", "进行影片片段声音重制及部分声音设计方向把控", "入围‘聲動杯’学院奖", "获得‘声动五四 音传青春’联展最佳作品奖"]}, "company": "电影片段", "type": "电影片段", "aiDraft": {"summary": "对电影《少年的你》中高戏剧张力片段进行声音重制，带领团队完成录音、拟音、声音设计及混音全流程。", "keyWork": ["ADR", "拟音", "终混"], "highlights": ["指导配音演员台词节奏与情感表达", "进行影片片段声音重制及部分声音设计方向把控", "入围‘聲動杯’学院奖", "获得‘声动五四 音传青春’联展最佳作品奖"], "role": "配音指导/声音后期"}, "localeKey": "ec9feb50-278a-4a9f-93d4-5770703848e5"}, {"name": "《全球风暴》", "groupId": "redesign", "date": "2025.03--2025.04", "role": "声音后期", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "电影片段", "type": "电影片段", "localeKey": "49de6b17-64fc-49b9-99cc-06e434474a2f"}, {"name": "《神之浩劫》", "groupId": "redesign", "date": "2024.12--2025.01", "role": "声音后期", "rawMaterial": "", "summary": "", "keyWork": [], "highlights": [], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "showDetails": false, "company": "CG短片", "type": "CG短片", "localeKey": "bca73157-a64c-413b-a1c7-52ddb840e56e"}, {"name": "《不一样》", "groupId": "music", "date": "2024.11--2025.01", "role": "导演/剪辑/混音", "rawMaterial": "MV《不一样》   导演/编剧/剪辑/声音后期   2024.11--2025.01\n项目介绍：围绕群像合唱的歌曲《不一样》开展MV创作，自主创意构思剧情、统筹拍摄并进行剪辑，同时完成进棚录歌及完成其声音后期制作。\n工作职责：担任项目总负责人，全方面统筹MV创作的全流程规划；完成MV剧情脚本创作、拍摄设计、道具筹备等工作；参与歌曲中的部分演唱，指导团队成员并完成分轨录音；进行声音后期，完成伴奏及贴唱的优化，使音乐与拍摄画面更好的实现融合，提升作品整体的听觉体验。\n项目成果：入围第四届“聲動杯”学院奖；产出完整的《不一样》MV作品，涵盖剧情、影像、声音全环节，实现从创意策划到成品的落地，提升多环节多领域的创作与实操能力。", "summary": "围绕群像合唱歌曲《不一样》创作的MV，通过自主构思剧情、统筹拍摄与剪辑，同时完成歌曲录音及声音后期制作，实现从创意到成品的全流程落地。", "keyWork": ["创作", "拍摄", "统筹", "录音"], "highlights": ["统筹MV全流程规划与执行落地", "完成剧情脚本创作与拍摄设计", "参与并指导团队演唱录制", "优化伴奏与贴唱，提升混音及音画整体效果"], "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "structuredContent": {"summary": "围绕群像合唱歌曲《不一样》创作的MV，通过自主构思剧情、统筹拍摄与剪辑，同时完成歌曲录音及声音后期制作，实现从创意到成品的全流程落地。", "keyWork": ["创作", "拍摄", "统筹", "录音"], "highlights": ["统筹MV全流程规划与执行落地", "完成剧情脚本创作与拍摄设计", "参与并指导团队演唱录制", "优化伴奏与贴唱，提升混音及音画整体效果"]}, "company": "MV", "type": "MV", "localeKey": "f20794b3-5ef3-4672-8dd0-1a8cdc5da36d"}, {"name": "《小黄人越狱计划》", "groupId": "music", "date": "2024.6", "role": "音乐编辑", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "company": "电影片段", "showDetails": false, "summary": "", "keyWork": [], "highlights": [], "type": "电影片段", "localeKey": "e0ee924f-1d0a-402a-a027-f070bea405e7"}, {"name": "RM 音视频质量优化", "groupId": "other", "date": "2026.03--2026.08", "role": "数据标注", "rawMaterial": "RM 音视频质量优化                      数据标注                   2026.03--2026.8\n项目背景：负责 AI 生成音视频内容的质量评估与数据标注工作，参与标注策略对音频整体质量与多维度指标进行标准化打分，构建高质量训练数据集，支撑 AI 音频生成模型的迭代优化。\n工作职责：对 AI 生成音频进行整体质量评分与多维度指标标注（音质、清晰度、自然度、完整性、异常音等）；执行 Pointwise 标注规范，完成音频质量标签标注与数据校验；参与标注策略优化，确保标注结果一致性与准确性；对标注数据进行整理、复核，输出高质量训练数据用于模型迭代。\n项目成果：提升数据标准化与模型迭代效率，标注数据准确率达 85% 以上，有效数据利用率高。\n", "structuredContent": {"summary": "负责AI生成音视频内容的质量评估与数据标注，通过多维度指标标准化打分构建高质量训练数据集，支撑AI音频生成模型迭代优化。", "keyWork": ["音质评分", "多维度标注", "数据校验", "策略优化"], "highlights": ["通过Pointwise标注规范实现音频质量标签标准化，标注数据准确率达85%以上"]}, "media": {"mainVisual": null, "processImages": [], "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "aiDraft": {"summary": "负责AI生成音视频内容的质量评估与数据标注，通过多维度指标标准化打分构建高质量训练数据集，支撑AI音频生成模型迭代优化。", "keyWork": ["对AI生成音频进行整体质量评分与多维度指标标注", "执行Pointwise标注规范完成质量标签标注与数据校验", "多维度指标标准化打分支撑AI模型迭代优化", "总质检数据准确率达85%以上，高有效数据利用率与准确性"], "highlights": [], "role": ""}, "summary": "负责AI生成音视频内容的质量评估与数据标注，通过多维度指标标准化打分构建高质量训练数据集，支撑AI音频生成模型迭代优化。", "keyWork": ["音质评分", "多维度标注", "数据校验", "策略优化"], "highlights": ["通过Pointwise标注规范实现音频质量标签标准化，标注数据准确率达85%以上"], "company": "字节项目", "type": "字节项目", "localeKey": "d2fc0e20-7ae7-43df-bf4a-114e0aa1d262"}, {"name": "《雪夜迷杀》", "groupId": "other", "role": "录音助理/无线", "date": "2025.11--2026.01", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "电影", "type": "电影", "localeKey": "25ff44cd-4f5f-44cb-be9a-c1769e55ee42"}, {"name": "《恽代英》", "groupId": "other", "role": "音频制作", "date": "2024.11", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "有声书", "type": "有声书", "localeKey": "92c4ed5d-6be0-4b1b-bc0b-69075e2a3bcd"}, {"name": "《雁灰了》", "groupId": "other", "role": "录音师", "date": "2024.08", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "原创短片", "type": "原创短片", "localeKey": "f5e4bb38-1773-4038-bb46-689060ecbfc4"}, {"name": "《陌生》", "groupId": "other", "role": "录音师", "date": "2024.08", "rawMaterial": "", "structuredContent": {"summary": "", "keyWork": [], "highlights": []}, "summary": "", "keyWork": [], "highlights": [], "media": {"processImages": [], "mainVisual": null, "video": null, "audio": null, "externalVideoUrl": "", "externalLink": ""}, "showDetails": false, "company": "原创短片", "type": "原创短片", "localeKey": "74000b3b-57fc-470a-9a3c-b67e8fbeedc9"}], "showreel": {"projects": [{"id": "sr_main", "name": "Sound Design", "role": "", "media": {"url": "media/showreel/showreel-web-web.mp4", "name": "showreel-web-web.mp4", "type": "video/mp4"}, "externalVideoUrl": "", "chapters": [{"role": "声音指导/声音设计", "end": "00:00:19.078", "title": "短片《未竟之春》", "start": "00:00:00.000", "projectId": 0}, {"role": "声音制作", "end": "00:01:02.314", "title": "待春归", "start": "00:00:20.625", "projectId": 2}, {"role": "声音设计", "end": "00:01:35.126", "title": "《放生红烧鱼》", "start": "00:01:02.395", "projectId": 1}, {"role": "配音指导/声音后期", "end": "00:02:43.863", "title": "《少年的你》（片段）", "start": "00:01:35.437", "projectId": 4}, {"role": "声音后期", "end": "00:03:15.517", "title": "全球风暴", "start": "00:02:43.863", "projectId": 5}, {"projectId": 6, "title": "《神之浩劫》", "role": "声音后期", "start": "00:03:15.567", "end": "00:03:58.344"}, {"projectId": 8, "title": "《小黄人越狱计划》", "role": "音乐编辑", "start": "00:03:58.455", "end": "00:04:27.129"}, {"projectId": 3, "title": "《路》", "role": "声音设计", "start": "00:04:27.296", "end": "00:04:52.381"}, {"projectId": 7, "title": "《不一样》", "role": "导演/剪辑/混音", "start": "00:04:52.309", "end": "00:05:34.792"}, {"projectId": 11, "title": "《恽代英》", "role": "音频制作", "start": "00:04:52.309", "end": "00:05:34.792"}]}]}, "aiVoices": {"title": "AI Voices", "summary": "", "sections": {"Origin": "", "Problem": "", "VoxCPM2": "", "Product Design": "", "Voice Design": "", "Voice Clone": "", "Ultimate Design": "", "Audio Processing": ""}, "media": {"desktop": null, "mobile": null, "workflow": null, "demo": null}, "liveDemoUrl": "", "githubUrl": "", "projects": [{"name": "FolioFold", "role": "Product / Creative Lead", "summary": "面向创作者的本地优先作品集编辑与发布工具，整合内容管理、可视化排版、多媒体展示、模板复用与网页发布，帮助用户从内容整理到最终展示完成完整的作品集制作流程。", "tech": ["Python", "JavaScript", "HTML / CSS", "GrapesJS", "Ollama / Qwen3"], "highlights": ["本地优先的完整作品集制作工作流", "文本、作品、排版三位一体协同编辑", "多媒体与多语言内容的在线作品展示", "模板复用与灵活页面结构的组合方式"], "githubUrl": "", "liveDemoUrl": "", "media": {"image": null, "screenshots": [], "video": {"url": "media/ai-voices/FolioFold.mp4", "name": "FolioFold.mp4", "type": "video/mp4"}}, "logo": {"url": "media/ai-voices/ff-5.png", "pos": "before"}, "positioning": "作品集制作与发布", "contribution": "负责 Folio Fold 的整体策划与实现，完成项目定位、功能结构、工作流与页面组织设计，完成核心功能落地、内容测试与发布流程验证。"}, {"name": "VoxHilo", "role": "AI Voice / Audio Developer", "summary": "基于 VoxCPM2 的本地 AI 语音设计与生成工具，面向声音创作者整合 Voice Design、Voice Clone 与音频后期处理，支持通过自然语言控制音色、年龄、情绪与表达，并将声音生成、空间效果与音质处理整合于统一的轻量化 Web 工作流中。", "tech": ["Python  ", "FastAPI ", "JavaScript", "HTML/CSS", " VoxCPM2", "llama.cpp", "GGUF", "faster-whisper ", "FFmpeg", "NumPy ", "SciPy"], "highlights": ["本地 AI 语音生成与 Voice Design 工作流", "Voice Clone 与参考音频驱动的声音生成", "自然语言驱动的音色、年龄与情绪控制", "语音生成与混响、降噪、音质增强等后处理集成", "Raw → Expression → Processed 分层音频处理架构"], "githubUrl": "", "liveDemoUrl": "", "media": {"image": null, "screenshots": [], "video": {"url": "media/ai-voices/VoxHilo.mp4", "name": "VoxHilo.mp4", "type": "video/mp4"}}, "contribution": "独立完成从 VoxCPM2 本地推理、FastAPI Web 应用、语音生成与控制逻辑，到音频后处理、质量检查及本地运行环境的整体设计与开发，持续通过实际音频测试验证语音控制效果与处理链路。", "positioning": "AI 语音设计与生成", "logo": {"url": "media/ai-voices/voh.png", "pos": "before"}}]}, "styles": {"text": "#161616", "background": "#e1fef9", "accent": "#83ddfb", "titleSize": "56", "bodySize": "16", "weight": "400", "font": "Noto Sans SC", "spacing": "medium"}, "media": {}, "settings": {"version": 3, "translationMode": "direct"}, "resume": null, "chapter": {"showreel": {"chapters": {"0": {"role": "声音指导 / 声音设计"}}}}, "theme": {"mode": "light", "preset": "light-02"}, "design": {"theme": {"mode": "light", "preset": "light-02"}, "typography": {"text": "#161616", "background": "#e1fef9", "accent": "#83ddfb", "titleSize": "56", "bodySize": "16", "weight": "400", "font": "Noto Sans SC", "spacing": "medium"}, "layout": {}, "components": {}}, "visualEditor": {"project": null, "savedAt": null}, "schemaVersion": 2, "sectionTitles": {"works": "Experience", "aiVoices": "AI Project", "experience": "Works"}, "contactLinks": [{"value": "zerontd@163.com"}], "sections": ["about", "experience", "works", "showreel", "aiVoices"], "blocks": [], "about": "C:\\fakepath\\folioframe-mark-96.png", "works": "after", "sectionTitleTranslations": {"en": {}}, "localizedContent": {"en": {"projects": {"516ed0a1-d93c-4deb-b7eb-246b52c2157e": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:59b5ef2da455400beae560b631b56680dd94c67983ea08534398b9d7c591d4ab", "status": "unconfigured"}}, "af6f56ff-0e31-495f-8d4f-135716e03491": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:7f1854c3aa77d7cd558ce1b3b8de460e1cf6fa5e6bc0445f11c99a95fa000b24", "status": "unconfigured"}}, "397f584c-c31c-45a8-9c5d-417ed3772ade": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "22c9cc40-2b30-4ae0-bc82-57b045c92a95": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "ec9feb50-278a-4a9f-93d4-5770703848e5": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:426645565f2dd1213eaa304f192fe5cbd54d15ca8e6e15780a331fbe3872dcd2", "status": "unconfigured"}}, "49de6b17-64fc-49b9-99cc-06e434474a2f": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "bca73157-a64c-413b-a1c7-52ddb840e56e": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "f20794b3-5ef3-4672-8dd0-1a8cdc5da36d": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:4113cd1aff86417cd5ef7a74e59316699b81cc404ba12b0a9f1f8562e1cdcbd6", "status": "unconfigured"}}, "e0ee924f-1d0a-402a-a027-f070bea405e7": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "d2fc0e20-7ae7-43df-bf4a-114e0aa1d262": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:761539c338a1ab56cec94367d2847665b2c42e2c41d1acdef67f52d86aae1e68", "status": "unconfigured"}}, "25ff44cd-4f5f-44cb-be9a-c1769e55ee42": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "92c4ed5d-6be0-4b1b-bc0b-69075e2a3bcd": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "f5e4bb38-1773-4038-bb46-689060ecbfc4": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "74000b3b-57fc-470a-9a3c-b67e8fbeedc9": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", "status": "unconfigured"}}, "43dd96f8-cb8c-4f20-a231-f449732751d1": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:5e1397ddfb6181c042123f4bd5061964184d6c9d2f03a5ce8c4f4b5435d1b83f", "status": "unconfigured"}}}, "experience": {"2f7974b8-ad5e-4ed2-aac4-185c7ea89895": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:17ccd55e2716e06a37311876e216f86a143a77b761aba6ce66a67aec0b59db1e", "status": "unconfigured"}}, "ef5fc5b4-460e-495c-ab3e-2755eeca12c3": {"summary": {"sourceLanguage": "zh-CN", "targetLanguage": "en", "draft": "", "reviewed": "", "error": "尚未配置翻译服务", "sourceHash": "sha256:5036ed31cdb3a716eb61156116c7975ba6db20c08740a80f616a85dd2e40909d", "status": "unconfigured"}}}}}, "sectionLogos": {}, "localePins": {"staticText.eyebrow-selected-works": 1, "aiVoices.projects.0.name": 1, "aiVoices.projects.0.tech": 1, "aiVoices.projects.0.githubUrl": 1}};window.__PORTFOLIO_DESIGN__={"schemaVersion": 2, "designVersion": 2569, "savedAt": "2026-10-01T05:03:18Z", "theme": {"mode": "light", "preset": "light-02"}, "imgSizes": {"projects.1.media": {"widthPct": 18}, "projects.0.media": {"widthPct": 18}, "aiVoices.projects.1.media.video": {"widthPct": 100}}, "spacing": {"topSpace": 160, "heroNameGap": 7, "heroPad": 0, "metaTop": 40, "dirGap": 42, "entryGap": 0, "footerTop": 437, "footerBottom": 20}, "pixel": {"size": 134, "x": null, "y": null, "scale": 1, "xPct": 1, "yPct": 0.48554913294797686}, "inlineStyles": {}, "textStyles": {"aiVoices.projects.0.name": {"fontSize": "23px"}, "aiVoices.projects.1.name": {"fontSize": "23px"}, "projects.0.name": {"fontSize": "18px"}, "projects.1.name": {"fontSize": "18px"}, "projects.2.name": {"fontSize": "16px"}, "projects.3.name": {"fontSize": "16px"}, "projects.4.name": {"fontSize": "18px"}, "projects.5.name": {"fontSize": "16px"}, "projects.6.name": {"fontSize": "16px"}, "projects.7.name": {"fontSize": "18px"}, "projects.9.name": {"fontSize": "18px"}, "showreel.projects.0.name": {"fontSize": "20px"}}, "mediaLayout": {"projects.0.media": {"belowAlign": "center", "symmetric": true}}, "mediaItems": {"projects.0.media#image1": {"order": 1, "place": "below", "widthPct": 38, "perRow": 4}}, "images": [{"id": "bound_1790806570349", "src": "media/ai-voices/VoxHilo.mp4", "sourcePath": "aiVoices.projects.1.media.video", "inplace": true, "aKind": "item", "aSection": "aiVoices", "aItem": "aiVoices.projects.1", "aLabel": "VoxHilo", "xPct": 0.6200002812781278, "yPct": 0.483331622251881, "wPct": 0.37999971872187216, "aspect": 1.7778326095538888, "yMode": "h"}, {"id": "bound_1790806582279", "src": "media/ai-voices/FolioFold.mp4", "sourcePath": "aiVoices.projects.0.media.video", "inplace": true, "aKind": "item", "aSection": "aiVoices", "aItem": "aiVoices.projects.0", "aLabel": "FolioFold", "xPct": 0.619999294433077, "yPct": 0.31126790276833644, "wPct": 0.37999188598038525, "aspect": 1.7778007014648236, "yMode": "h"}], "staticText": {"eyebrow-selected-works": "see you"}, "sectionOrder": ["about", "experience", "works", "showreel", "aiVoices"], "imgPos": {"projects.0.media#image1": {"place": "free"}, "aiVoices.projects.1.media.video": {"place": "free"}, "aiVoices.projects.0.media.video": {"place": "free"}}, "displayZones": {"hero": ["eyebrow", "name", "role", "intro"], "secondary": ["highlights", "contactLinks", "publicLinks", "skills"]}};</script>
 <script>/* FolioFold i18n runtime  —— 2026-09-22 重构
  *
  * 设计目标（按用户实际反馈定的，不是拍脑袋加的）：
@@ -10271,9 +10298,16 @@ function freeGeomOfEl(el){
 }
 function refitFreeInLayer(layer){
   if (layer && !freeLayerWidth(layer)) return;
-  // 副本和「原地自由摆放的原图」都要补 —— 后者未必在浮层里（它还在媒体栏/正文原来的位置上），
-  // 所以按 data 属性全文档扫，而不是只扫某一个浮层的子节点。
-  document.querySelectorAll('.ve-free-img[data-ff-unmeasured], [data-ff-free][data-ff-unmeasured]').forEach(el => {
+  // 拖拽 / 缩放进行中不动手：否则用户正拖着图，观察器一触发就把图弹回保存值。
+  if (typeof _veFreeDragBusy !== 'undefined' && _veFreeDragBusy) return;
+  /* 副本和「原地自由摆放的原图」都要补 —— 后者未必在浮层里（它还在媒体栏/正文原来的位置上），
+   * 所以按 data 属性全文档扫，而不是只扫某一个浮层的子节点。
+   * ⚠ 2026-09-28 穿模修复：只补「没量出来」的（data-ff-unmeasured）已经不够。
+   *   C 区项目是 <details>，折叠时浮层**有宽没高**（实测 1239×0）—— 那一帧算出的几何
+   *   （旧实现 = 整张图原尺寸，收口后 = 被压成 1×1）在展开后**没有任何东西会重算**，
+   *   图就一直停在旧尺寸上。所以只要参照浮层能量出宽度，就按 design 数据整体重算一遍
+   *   （数据才是真相，重算是幂等的）。 */
+  document.querySelectorAll('.ve-free-img, [data-ff-free]').forEach(el => {
     const g = freeGeomOfEl(el);
     if (g) applyFreeGeom(el, g.im, g.layer);
   });
@@ -10390,11 +10424,35 @@ function freeAnchoredRect(im){
   const layer = ensureFreeLayer(c);
   const lr = layer.getBoundingClientRect();
   const lw = Math.max(1, lr.width);
-  const yBase = freeYBase(im, lw, Math.max(1, lr.height));
-  const w = (im.wPct != null ? im.wPct : 0.24) * lw;
-  const h = im.aspect ? w / im.aspect : w;
-  const left = (im.xPct != null ? im.xPct : 0.3) * lw;
-  const top  = (im.yPct != null ? im.yPct : 0.1) * yBase;
+  const lhRaw = lr.height;
+  const lh = Math.max(1, lhRaw);
+  const yBase = freeYBase(im, lw, lh);
+  let w = (im.wPct != null ? im.wPct : 0.24) * lw;
+  let h = im.aspect ? w / im.aspect : w;
+  /* ===== 区域收口（2026-09-28 穿模修复）：自由图绝不画到所属区域之外 =====
+   * 用户原话：「它既然归属于所属到某一个区域内，那它就不能再穿模延伸到下面去。」
+   * 实测根因：排版编辑画布是 1280 固定设计稿（缩放到面板显示），作品集页按**窗口实宽**排版。
+   *   同一区域在两端的宽高比不同（AI 项目卡片：画布 1111×390 → 展示页 1271×362）。
+   *   而自由图的尺寸按**容器宽**定（w = wPct×lw，h = w/aspect）、纵向位置按**容器高**定，
+   *   于是宽窗口下图片会长出区域底部、压住下一个项目 —— 窗口越宽越穿模。
+   * 修法：渲染时按区域盒**等比收口**（保住长宽比，整张图仍完整可见），再把位置夹进区域；
+   *   只改渲染结果、不改 design 数据，画布与展示页共用同一套规则 → 两端语义一致。
+   * ⚠ tail（目录与脚页之间）的高度正是由图本身撑起来的（见 VE_renderFreeLayer 里
+   *   tz.style.minHeight = tailBottom），对它收口会循环依赖把图压成 0 —— 必须跳过。 */
+  // ⚠ 层高必须是「真量出来的」：C 区项目是 <details>，折叠时浮层**有宽没高**（实测 1239×0），
+  //   拿 lh=1 去收口会把图压成 1×1、展开后还停在那个尺寸（见 refitFreeInLayer）。
+  //   区域还没真正显示 → 不收口，保持原尺寸，等它显示出来由观察器按新尺寸重算。
+  const fitInside = (im.aKind || 'page') !== 'tail' && lhRaw > 1;
+  if (fitInside){
+    if (w > lw){ const k = lw / w; w = lw; h *= k; }
+    if (h > lh){ const k = lh / h; h = lh; w *= k; }
+  }
+  let left = (im.xPct != null ? im.xPct : 0.3) * lw;
+  let top  = (im.yPct != null ? im.yPct : 0.1) * yBase;
+  if (fitInside){
+    left = Math.max(0, Math.min(lw - w, left));
+    top  = Math.max(0, Math.min(lh - h, top));
+  }
   return { left, top, width: w, height: h };
 }
 // 从元素当前位置反算 v3 字段（拖拽 / 缩放后调用）。坐标相对「所在容器浮层」。
@@ -10515,7 +10573,9 @@ function VE_renderFreeLayer(isEditor){
       const r = applyFreeGeom(img, im, layer);
       if ((im.aKind || 'page') === 'tail' && r) tailBottom = Math.max(tailBottom, r.top + r.height);
     });
-    if (!freeLayerWidth(layer)) freeWatchContainer(layer);
+    // ⚠ 2026-09-28：所属区域「有宽没高」（C 区项目 <details> 折叠 → 浮层 1239×0）也要挂观察，
+    //   否则项目展开后没有任何东西会按新区域尺寸重算自由图，图会一直停在折叠时的旧几何上。
+    if (!freeLayerWidth(layer) || layer.getBoundingClientRect().height <= 1) freeWatchContainer(layer);
     if (_upgraded) commitFreeImages();
   });
   const tz = document.querySelector('.ve-tail-zone');
@@ -10543,7 +10603,10 @@ let _veRelayoutTimer = null;
 //   · onMove 把坐标写进游离节点 → 画面上的图不跟随，看上去「拖到一半跳回原位」
 //   · onUp 量到的 rect 全 0 → 本次拖动被整段丢弃（实测 Δx=0.0‰）
 // 这里不改动触发条件与任何数值计算，只把「重建」推迟到拖动结束之后。
-let _veFreeDragBusy = false;
+// ⚠ 用 var 而不是 let：refitFreeInLayer（上面）会读它，而它有可能在模块求值完成前
+//   就被 ResizeObserver / setTimeout 回调读到 —— let 会落进 TDZ 直接抛 ReferenceError。
+//   var 会提升成 undefined，typeof 判断安全返回 false（= 不拦截），语义不受影响。
+var _veFreeDragBusy = false;
 function VE_relayoutFree(){
   clearTimeout(_veRelayoutTimer);
   // ⚠ 2026-09-26 人工回归：VE_renderFreeLayer(true) 会把整层自由图的 DOM 换掉，
@@ -12221,7 +12284,7 @@ function initVEDirect(){
     if (mi) return mi;
     const box = node.closest('[data-ve-media-box]');
     if (box) return box;
-    const el = node.closest('[data-ve-item],[data-field],[data-ve-img],[data-ve-group],img.ve-resizable');
+    const el = node.closest('[data-ve-item],[data-field],[data-ve-img],[data-ve-group],img.ve-resizable,video.ve-resizable');
     if (el) return el;
     // 兜底（「元素」模式）：细粒度识别不到时，把「整个板块」当做一个元素选中，
     // 这样用户可以对任何模块做整块删除（隐藏），而不依赖其内部是否带 data-field / data-ve-item。
@@ -12267,7 +12330,7 @@ function initVEDirect(){
     const imgId = el.getAttribute('data-ve-img');
     // 图片尺寸模式：选中谁，手柄与工具条就归谁（PPT 行为）——其余对象保持只有虚线轮廓。
     // 自由图片（data-ve-img）走自己的八向手柄，不进 PPT 尺寸体系。
-    if (mode === 'image' && !imgId && el.classList && (el.hasAttribute('data-ve-media-item') || el.hasAttribute('data-ve-media-box') || el.tagName === 'IMG')) selectSizeTarget(el);
+    if (mode === 'image' && !imgId && el.classList && (el.hasAttribute('data-ve-media-item') || el.hasAttribute('data-ve-media-box') || el.tagName === 'IMG' || (el.tagName === 'VIDEO' && el.hasAttribute('data-ve-media-path')))) selectSizeTarget(el);
     if (imgId){ buildImageBar(el, imgId); notifySelection(el); return; }
     if (el.hasAttribute && el.hasAttribute('data-ve-media-item')){ buildMediaItemBar(el); notifySelection(el); return; }
     if (el.hasAttribute && el.hasAttribute('data-ve-media-box')){ buildMediaBoxBar(el); notifySelection(el); return; }
@@ -12638,7 +12701,7 @@ function initVEDirect(){
     // 自己的手柄/辅助件不算「点空白」，别让点手柄把选中清掉
     if (e.target.closest('.ve-img-handle') || e.target.closest('.ve-col-divider') || e.target.closest('.ve-space-bar') || e.target.closest('.ve-gap-line')) return;
     // 图片尺寸模式：只认媒体对象，点别处一律当取消选中（不然顺手就把文字选进来、进入编辑）
-    if (mode === 'image' && !e.target.closest('[data-ve-media-item],[data-ve-media-box],img.ve-resizable,[data-ve-img]')){
+    if (mode === 'image' && !e.target.closest('[data-ve-media-item],[data-ve-media-box],img.ve-resizable,video.ve-resizable,[data-ve-img]')){
       clearSelection();
       return;
     }
@@ -13190,7 +13253,11 @@ function initVEDirect(){
    * key 一律用「媒体项 key」（带 #imageK，每图唯一）或「内容路径」，绝不能用共用的 media 路径。 */
   function freeBindOwnElement(el, key, labelFallback){
     if (!el || !key) return false;
-    const src = freeSrcOf(el.tagName === 'IMG' ? el : el.querySelector('img'));
+    // ⚠ 2026-10-01（用户实测 BUG）：旧写法只认 <img>，其余一律去后代里找 <img>。
+    //   <video>（C 区媒体项视频 / E 区 AI Project 视频）里根本没有 img → src 为空 →
+    //   本函数直接 return false —— 用户看到的就是「工具条上明明写着自由摆放，点下去毫无反应，
+    //   只能缩放、挪不动位置」。现在 IMG / VIDEO 都直接取自身，其余再去后代里找。
+    const src = freeSrcOf((el && (el.tagName === 'IMG' || el.tagName === 'VIDEO')) ? el : (el && el.querySelector('img, video')));
     if (!src) return false;
     const rect = el.getBoundingClientRect();
     // 封面原本可能处于 float-right，视觉坐标会落在文章节点之外；优先锁定它所属的
@@ -13290,11 +13357,11 @@ function initVEDirect(){
       if (dt && rb.width >= 8 && rb.height >= 8) makeColDivider(dt, selBox);
     }
     // ③ 栏外散落图片（AI 项目封面 / 截图等）
-    document.querySelectorAll('img').forEach(img => {
-      if (img.closest('[data-ve-media-item]')) return;     // 已由所属媒体项统一控制
-      if (img.closest('[data-ve-media-box]')) return;      // 同上
-      if (img.classList.contains('ve-pix-img')) return;    // Pixel Character 有独立的定位/大小控制
-      if (img.classList.contains('ve-free-img')) return;   // 自由浮层图片有独立的手柄/拖动
+    document.querySelectorAll('img, video').forEach(img => {
+      if (img.closest && img.closest('[data-ve-media-item]')) return;     // 已由所属媒体项统一控制
+      if (img.closest && img.closest('[data-ve-media-box]')) return;      // 同上
+      if (img.classList && img.classList.contains('ve-pix-img')) return;    // Pixel Character 有独立的定位/大小控制
+      if (img.classList && img.classList.contains('ve-free-img')) return;   // 自由浮层图片有独立的手柄/拖动
       if (!img.getAttribute('data-ve-media-path') && !img.getAttribute('src')) return;
       // 画布里取消懒加载：否则视口外的图片不加载 → 测不到尺寸 → 拿不到手柄（表现为"没有手柄"）
       if (img.loading === 'lazy') { img.loading = 'eager'; }
@@ -13441,8 +13508,10 @@ function initVEDirect(){
       // 那张图其实在普通排版里，此时必须显示「✥ 自由摆放」而不是「↺ 恢复常规摆放」。
       const cur = freeStateOfKey(pbKey).free ? 'free' : (((window.__veImgPos || {})[pbKey] || {}).place || 'inline');
       const mk = (val, label, tip) => `<button data-place="${val}" class="${cur === val ? 'on' : ''}" title="${tip}">${label}</button>`;
+      // 2026-10-01：E 区 / C 区的本地视频也走这条工具条，按钮文案按元素类型给（不然视频写着「删除图片」）。
+      const _vWord = el.tagName === 'VIDEO' ? '视频' : '图片';
       pb.innerHTML =
-          `<button data-a="del-imgpath" title="从内容里删掉这张图片（可在文本编辑里重新上传）">🗑 删除图片</button>`
+          `<button data-a="del-imgpath" title="从内容里删掉这个${_vWord}（可在文本编辑里重新上传）">🗑 删除${_vWord}</button>`
         + (cur === 'free'
             ? `<button data-a="unfree" title="这张图本身没变，只是取消自由摆放、回到常规排版">↺ 恢复常规摆放</button>`
             : mk('free', '✥ 自由摆放', '让这张图在所属内容区域内直接拖动和缩放（用的是它本身，不会新增副本）'));
@@ -15073,7 +15142,7 @@ function renderCloudBaseSection(pb, cb){
       ${cbAccessNoteHtml()}
       <p class="publish-desc">「更新当前发布」只覆盖本模板现在这个地址，同一环境下其它模板的地址不受影响。也可以改用「导出 ZIP」，把包上传到静态网站托管，无需密钥。</p>`;
     cbRenderQuota();
-    wireDepList(pb, cb.deployments, () => (window.__ffRenderPublicLink && window.__ffRenderPublicLink()));
+    wireDepList(pb, cb.deployments, () => (window.__ffRenderPublicLink && window.__ffRenderPublicLink()), 'cloudbase');
   } else if(cb.configured){
     pb.innerHTML=`
       <div class="publish-status">
@@ -15249,7 +15318,11 @@ function depListHtml(list, curTpl, emptyHint){
 // 绑定列表里的「复制 / 改发布内容 / 删除」按钮。
 // list = 该平台的 deployments 原始数组（用于取 provider/tpl/path 三元组）；
 // rerender = 操作完成后重渲面板的回调（通常是 renderPublicLink 的再次调用）。
-function wireDepList(host, list, rerender){
+function wireDepList(host, list, rerender, provider){
+  // provider = 这一组记录属于哪个渠道（'github' / 'cloudbase'），由调用方传入。
+  // ⚠ 必须显式带上（2026-09-28 修复）：老版本 /api/deploy/status 组装记录时漏了 provider 字段，
+  // 而下面三个按钮都把它原样塞进请求体 → undefined 被 JSON.stringify 丢掉 →
+  // 后端判空 → 一律「不支持的平台：(空)」，列表里的按钮就成了摆设。
   const items = (list || []).filter(d => d && d.url);
   (host || document).querySelectorAll('[data-dep-copy]').forEach(b => {
     b.onclick = async () => {
@@ -15271,9 +15344,9 @@ function wireDepList(host, list, rerender){
       const name = d.tplName || d.tpl || 'main';
       const sub = d.path ? '/' + d.path + '/' : '/';
       if (!window.confirm('删除这条发布？\n\n· 模板：' + name + '\n· 路径：' + sub + '\n\n会同时删除线上对应的页面（GitHub Pages / CloudBase 上该路径将无法访问），此操作不可撤销。')) return;
-      await runPubJob(d.provider || 'github', '正在提交删除请求…', async () => {
+      await runPubJob(d.provider || provider || 'github', '正在提交删除请求…', async () => {
         const r = await fetch('/api/deploy/remove', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: d.provider, tpl: d.tpl || 'main', path: d.path || '', remote: true }) }).then(x => x.json());
+          body: JSON.stringify({ provider: (d.provider || provider || ''), tpl: d.tpl || 'main', path: d.path || '', remote: true }) }).then(x => x.json());
         // 线上没能删掉：如实把"去哪儿手动删"摆出来，而不是假装删干净了。
         if (r && r.ok && r.remoteOk === false && r.manualUrl) {
           if (typeof toastInCanvas === 'function') toastInCanvas('⚠ 线上没能自动删除，已打开手动删除页面');
@@ -15296,9 +15369,9 @@ function wireDepList(host, list, rerender){
       const sub = d.path ? '/' + d.path + '/' : '/';
       if (!window.confirm('把 ' + sub + ' 更新一遍？\n\n· 模板：' + nm + '\n· 路径：' + sub +
         '\n\n会用「' + nm + '」当前的内容覆盖这个网址上的页面。网址不变。')) return;
-      await runPubJob(d.provider || 'github', '正在准备更新 ' + sub + ' …', async () => {
+      await runPubJob(d.provider || provider || 'github', '正在准备更新 ' + sub + ' …', async () => {
         const r = await fetch('/api/deploy/retarget', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: d.provider, tpl: tpl, path: d.path || '', newTpl: tpl }) }).then(x => x.json());
+          body: JSON.stringify({ provider: (d.provider || provider || ''), tpl: tpl, path: d.path || '', newTpl: tpl }) }).then(x => x.json());
         if (r && r.ok) r.message = '已把 ' + sub + ' 更新为「' + nm + '」';
         return r;
       });
@@ -15322,9 +15395,9 @@ function wireDepList(host, list, rerender){
       });
       if (!target) return;
       const nm = ((tpls.find(t => t.id === target) || {}).name) || target;
-      await runPubJob(d.provider || 'github', '正在发布「' + nm + '」到 ' + sub + ' …', async () => {
+      await runPubJob(d.provider || provider || 'github', '正在发布「' + nm + '」到 ' + sub + ' …', async () => {
         const r = await fetch('/api/deploy/retarget', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider: d.provider, tpl: d.tpl || 'main', path: d.path || '', newTpl: target }) }).then(x => x.json());
+          body: JSON.stringify({ provider: (d.provider || provider || ''), tpl: d.tpl || 'main', path: d.path || '', newTpl: target }) }).then(x => x.json());
         if (r && r.ok) r.message = sub + ' 已发布为「' + nm + '」';
         return r;
       });
@@ -15476,7 +15549,7 @@ async function renderGithubSection(pb, gh){
       ${status.connected ? newDeployHtml('github', window.__tpl, (gh.deployments||[]).map(d=>d.path).filter(Boolean)) : ''}
       ${ghAccessNoteHtml()}
       <p class="publish-desc" style="margin-top:10px;font-size:12px;opacity:.72">「更新 FolioFold」会覆盖本模板现在这个地址，链接保持不变；其它模板的地址不受影响。大视频自动走 Release Assets。</p>`;
-    wireDepList(pb, gh.deployments, () => (window.__ffRenderPublicLink && window.__ffRenderPublicLink()));
+    wireDepList(pb, gh.deployments, () => (window.__ffRenderPublicLink && window.__ffRenderPublicLink()), 'github');
   } else if(status.connected){
     pb.innerHTML=`
       <div class="publish-status">
@@ -16734,12 +16807,22 @@ async function main(){
     const sourceSummary=(x.structuredContent&&x.structuredContent.summary)!=null?x.structuredContent.summary:(x.summary||'');
     const displaySummary=FF_I18N?FF_I18N.resolveLocalizedSummary(d,'experience',x,sourceSummary):sourceSummary;
     const hl=x.highlights||[];
-    const hasBody=!!(displaySummary||hl.length);
+    // 本地图片（与 C/D/E 同一套媒体布局契约）：experience.N.media.image。
+    //   无图 = 文字用完整可用宽度（不再写死 max-width）；有图 = 「文字区(.exp-main) + 媒体区(.exp-media)」两栏。
+    //   列宽与 C/D/E 同源：design.imgSizes['experience.N.media'].widthPct（18–70，默认 38）。
+    const expImg=url(x.media && x.media.image);
+    const hasMedia=!!expImg;
+    const hasBody=!!(displaySummary||hl.length||hasMedia);
+    const expSizeCfg=(design && design.imgSizes && design.imgSizes['experience.'+xi+'.media']) || {};
+    const expW=(expSizeCfg.widthPct!=null)?Math.max(18,Math.min(70,Number(expSizeCfg.widthPct)||38)):38;
     return `<details class="experience-item" data-ve-item="experience.${xi}" data-ve-kind="experience">
       <summary><strong class="exp-company" data-field="experience.${xi}.company" data-single>${esc(x.company||ffZ('未命名经历'))}</strong><span class="exp-position" data-field="experience.${xi}.position" data-single>${esc(x.position)}</span><span class="exp-date" data-field="experience.${xi}.date" data-single>${esc(x.date)}</span>${hasBody?`<span class="expand-label"><span class="expand-text">${esc(ffT('public.expand','展开'))}</span><span class="chev" aria-hidden="true"></span></span>`:''}</summary>
-      ${hasBody?`<div class="exp-body">
-        ${displaySummary?`<p class="exp-summary" data-field="experience.${xi}.summary" data-single>${esc(displaySummary)}</p>`:''}
-        ${hl.length?`<div class="exp-hl"><span class="label" data-static>Highlights</span><ul>${hl.map((h,hi2)=>`<li data-field="experience.${xi}.highlights.${hi2}" data-single data-ve-item="experience.${xi}.highlights.${hi2}" data-ve-kind="chip">${esc(h)}</li>`).join('')}</ul></div>`:''}
+      ${hasBody?`<div class="exp-body${hasMedia?' has-media':' no-media'}"${hasMedia?` style="--exp-pm-w:${expW}%"`:''}>
+        <div class="exp-main">
+          ${displaySummary?`<p class="exp-summary" data-field="experience.${xi}.summary" data-single>${esc(displaySummary)}</p>`:''}
+          ${hl.length?`<div class="exp-hl"><span class="label" data-static>Highlights</span><ul>${hl.map((h,hi2)=>`<li data-field="experience.${xi}.highlights.${hi2}" data-single data-ve-item="experience.${xi}.highlights.${hi2}" data-ve-kind="chip">${esc(h)}</li>`).join('')}</ul></div>`:''}
+        </div>
+        ${hasMedia?`<div class="exp-media"><img src="${expImg}" alt="${esc(x.company||'')}" loading="lazy" class="ve-resizable" data-ve-media-path="experience.${xi}.media.image"></div>`:''}
       </div>`:''}
     </details>`;
   }).join('')}</div>`;
@@ -16849,10 +16932,12 @@ async function main(){
     const sizeCfg=(design && design.imgSizes && design.imgSizes[P + '.media']) || {};
     const pmW=(sizeCfg.widthPct!=null) ? Math.max(18, Math.min(70, Number(sizeCfg.widthPct)||38)) : 38;
     const coverSrc = url(p.media && p.media.image);
-    const hasMedia = !!(coverSrc || shots);
-    const mediaStack = (coverSrc || shots) ? `<div class="ai-project-media">
+    const videoSrc = url(p.media && p.media.video);
+    const hasMedia = !!(coverSrc || shots || videoSrc);
+    const mediaStack = (coverSrc || shots || videoSrc) ? `<div class="ai-project-media">
         ${coverSrc?`<img src="${coverSrc}" alt="${esc(p.name||'AI 项目')}" class="ai-project-cover ve-resizable" data-ve-media-path="${P}.media.image">`:''}
         ${shots?`<div class="ai-project-shots">${shots}</div>`:''}
+        ${videoSrc?`<div class="ai-video"><video controls preload="metadata" playsinline class="pm-video-el ai-project-video ve-resizable" data-ve-media-path="${P}.media.video" data-vurl="${encodeURI(videoSrc)}" data-vname="${esc((p.media.video&&p.media.video.name)||videoSrc.split('/').pop())}" onerror="__veVideoErr(this)" src="${videoSrc}"></video></div>`:''}
       </div>` : '';
     const keywords = tech?`<div class="ai-project-keywords"><span class="label" data-static>Key words</span><div class="ai-project-tech">${tech}</div></div>`:'';
     const hlBlock = hl?`<div class="ai-project-highlights"><span class="label" data-static>Highlights</span><ul>${hl}</ul></div>`:'';
@@ -17046,6 +17131,8 @@ async function main(){
     entry.classList.toggle('open', !!open);
     const t = entry.querySelector('.expand-text'); if (t) t.textContent = open ? ffT('public.collapse','收起') : ffT('public.expand','展开');
     if (open) { try { entry.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (_) {} }
+    // 展开 / 收起会改变整段正文的行高与自由媒体的落点 → 重新判定「文字让位 / 舒展」。
+    try { ffBurstFreeReflow(); } catch (_) {}
     return true;
   }
   // 供父窗口（Visual Editor）直接调用：不能走 .entry-btn.click()，
@@ -17112,10 +17199,100 @@ async function main(){
       try { v.currentTime = +b.dataset.start; v.play(); } catch (_) {}
     });
     const v0 = scope.querySelector('video.pm-video-el');
-    if (v0) v0.addEventListener('timeupdate', () => {
-      scope.querySelectorAll('.chapter').forEach(b => b.classList.toggle('active', v0.currentTime >= +b.dataset.start && v0.currentTime < +b.dataset.end));
-    });
+    if (v0) {
+      // 默认音量 50%、倍速 1：观看者仍可用原生控件自行调节。
+      // 每次渲染都重设，保证「新加视频 / 切换模板（排版一/二/三）」后也一律 50%（不依赖浏览器默认 1.0）。
+      v0.volume = 0.5;
+      v0.playbackRate = 1;
+      v0.addEventListener('timeupdate', () => {
+        scope.querySelectorAll('.chapter').forEach(b => b.classList.toggle('active', v0.currentTime >= +b.dataset.start && v0.currentTime < +b.dataset.end));
+      });
+    }
   })
+  // 所有 .pm-video-el（C 区 Works / E 区 AI Project 等本地视频）统一行为：
+  // ① 默认音量 50%、倍速 1（每次渲染重设，覆盖新加视频，不依赖浏览器默认 1.0）；
+  // ② 双击全屏播放（VE 画布内交给尺寸模式，不触发全屏）。
+  document.querySelectorAll('video.pm-video-el').forEach(v => {
+    try { v.volume = 0.5; v.playbackRate = 1; } catch (_) {}
+    if (v.__ffDblFs) return;
+    v.__ffDblFs = (ev) => {
+      if (document.body.classList.contains('ve-embed')) return; // 画布双击=复位尺寸，不抢
+      ev.preventDefault();
+      try {
+        if (v.requestFullscreen) { const p = v.requestFullscreen(); if (p && p.catch) p.catch(()=>{}); }
+        else if (v.webkitEnterFullscreen) { v.webkitEnterFullscreen(); }
+        if (v.paused) v.play();
+      } catch (_) {}
+    };
+    v.addEventListener('dblclick', v.__ffDblFs);
+    // ③ 自由摆放的视频：拿到元数据后用**真实宽高比**修正记录。
+    //   转自由摆放那一刻 <video> 还是 300×150 的默认盒子，按它算出的 aspect=2 会把视频拉变形；
+    //   loadedmetadata 一到就按 videoWidth/videoHeight 重写并重新摆一次（幂等）。
+    if (!v.__ffFixAspect){
+      v.__ffFixAspect = () => {
+        const id = v.getAttribute && v.getAttribute('data-ve-img');
+        if (!id || !v.videoWidth || !v.videoHeight) return;
+        const it = (window.__veImages || []).find(i => i && i.id === id);
+        if (!it) return;
+        const a = v.videoWidth / v.videoHeight;
+        if (it.aspect && Math.abs(it.aspect - a) < 0.02) return;
+        it.aspect = a;
+        try {
+          const g = (typeof freeGeomOfEl === 'function') ? freeGeomOfEl(v) : null;
+          if (g && typeof applyFreeGeom === 'function') applyFreeGeom(v, it, g.layer);
+        } catch (_) {}
+        // 画布里改了数据就要落盘；普通作品集页没有父窗口，只调整本次渲染即可。
+        if (window.__veApi && window.__veApi.post) window.__veApi.post({ type:'ve-commit-images', images: window.__veImages });
+        if (typeof ffScheduleFreeReflow === 'function') ffScheduleFreeReflow();
+      };
+      v.addEventListener('loadedmetadata', v.__ffFixAspect);
+      if (v.readyState >= 1) v.__ffFixAspect();
+    }
+  });
+  /* ===== 自由摆放媒体的「文字让位 / 舒展」——两态简化版（2026-10-01 用户二次需求）=====
+   * 用户原话要点：「改成右边如果有图片或者是有视频的话它就收起来，没有图片没有视频的时候
+   * 再完全展开，不要再分什么图片在什么位置的话是什么情况。两种状态。」
+   *   · 有媒体（图/视频，含自由摆放）→ 文字整体收在左栏（默认两栏），**不再**按媒体位置逐行舒展；
+   *   · 没媒体 → 基础布局本来就是满宽（no-media / 单栏），自然舒展，无需额外处理。
+   * 因此本函数只做**复位**：清掉历史遗留的 .ff-relax，绝不新增。逐行判定逻辑已移除
+   * （v1 实测「有的行铺开、有的行让位」观感不好）。触发时机链路（load / resize / 展开折叠 /
+   * 媒体加载）全部保留，未来若要恢复逐行逻辑可直接在此函数内重写。
+   */
+  function ffFreeMediaReflow(){
+    // 排版编辑画布（?ve=1 / body.ve-embed）不参与：拖动过程中文字乱跳会非常难用。
+    const isCanvas = document.body.classList.contains('ve-embed')
+      || new URLSearchParams(location.search).get('ve') === '1';
+    if (isCanvas) return;
+    // 幂等复位：媒体被「恢复常规摆放」后必须能退回默认两栏；也清掉旧版本可能留下的舒展态。
+    document.querySelectorAll('.ff-relax').forEach(x => { x.classList.remove('ff-relax'); x.style.removeProperty('--ff-grow'); });
+  }
+  // 暴露给 QA / 父窗口：可手动触发一次让位重算（拖动结束后想立刻看结果时用）。
+  window.__ffFreeReflow = ffFreeMediaReflow;
+  let _ffFreeReflowT = null;
+  function ffScheduleFreeReflow(){
+    if (_ffFreeReflowT) clearTimeout(_ffFreeReflowT);
+    _ffFreeReflowT = setTimeout(() => { _ffFreeReflowT = null; try { ffFreeMediaReflow(); } catch (_) {} }, 120);
+  }
+  /* 一次「布局大变」之后按几个时间点补跑几次（展开面板 / 收起面板 / 程序化开合）。
+   * 为什么不是单次去抖：区块展开时，面板里的图片视频往往还在陆续加载、滚动是平滑的、
+   * 网页字体也可能后到 —— 只跑一次会量到「还没长开的」中间态。多跑几次是幂等的
+   * （每轮先整页复位 .ff-relax 再重新判定），不会累积、不会越跑越歪。 */
+  function ffBurstFreeReflow(){
+    [0, 220, 600, 1100].forEach(d => setTimeout(() => { try { ffFreeMediaReflow(); } catch (_) {} }, d));
+  }
+  /* ⚠ 2026-10-01 用户实测 bug：宣传页首屏是「折叠的区块」，自动那几轮（load / 150ms / 700ms）
+   * 跑的时候所有 rect 都是 0（量不出落点）→ 什么都没有舒展；等用户自己点开区块时，
+   * 「展开 / 收起」是切 .entry 的 class（不是 <details>），**一个事件都不触发** →
+   * 文字永远停在收起时的窄栏里，用户看到的就是「媒体明明挪走了、右边的字还是没铺开」。
+   * 所以两条路都埋上：① setEntryOpen 里主动 burst；② MutationObserver 兜底所有程序化开合
+   * （?expand=1 / 打印模式 / 父窗口指令 / 以后新增的入口都走 class 变化）。 */
+  let ffEntryObserver = null;
+  function ffWatchEntryOpen(){
+    if (ffEntryObserver || typeof MutationObserver !== 'function') return;
+    ffEntryObserver = new MutationObserver(() => ffBurstFreeReflow());
+    document.querySelectorAll('.entry').forEach(en => ffEntryObserver.observe(en, { attributes:true, attributeFilter:['class'] }));
+  }
+
   // —— 版本状态条：让你一眼知道当前看的是草稿还是已发布 ——
   if(!inStudio && new URLSearchParams(location.search).get('print')!=='1' && !window.__PUBLIC_VIEWER__) mountVersionBar(mode, d);
   // 仅在「纯作品集浏览」场景下显示右上角「发布」入口；Studio 外壳 / 排版编辑 / 公开查看器都不显示（避免重复）
@@ -17195,6 +17372,24 @@ async function main(){
       VE_applyInlineHtml();
     } catch (err) { console.warn('[VE] direct init failed', err); }
   }
+
+  // —— 自由摆放媒体的文字让位 / 舒展：只在真实作品集页做（画布里保持默认两栏）——
+  if (!isEditor){
+    try { ffFreeMediaReflow(); } catch (_) {}
+    setTimeout(ffScheduleFreeReflow, 150);
+    setTimeout(ffScheduleFreeReflow, 700);
+  }
+  // 折叠 / 展开（<details> 的 toggle 不冒泡，用捕获）、图片视频加载完、窗口宽度变化
+  // 都会改变行高与落点 → 重新判定让位。
+  try {
+    window.addEventListener('load', ffScheduleFreeReflow);
+    window.addEventListener('resize', ffScheduleFreeReflow);
+    document.addEventListener('toggle', ffScheduleFreeReflow, true);
+    document.addEventListener('load', ffScheduleFreeReflow, true);
+    document.addEventListener('loadedmetadata', ffScheduleFreeReflow, true);
+  } catch (_) {}
+  // 区块「展开 / 收起」不在上面任何一个事件里（见 ffWatchEntryOpen 注释）→ 单独兜底监听。
+  try { ffWatchEntryOpen(); } catch (_) {}
 
   // —— Pixel 运行时（hover/click 随机动作 + 沿轨迹走动）——
   // 真实作品集：完整走动+hover；VE 画布：只做 hover 随机动作，避免与拖拽冲突。
