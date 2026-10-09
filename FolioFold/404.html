@@ -23,7 +23,7 @@ button,a { font:inherit; } button { color:inherit; }
  * 现在由「页脚下方留白」这根间距杆控制（--ff-page-bottom），默认 28px，脚注紧贴页面底边。 */
 .shell { max-width:1440px; margin:auto; padding:24px 42px var(--ff-page-bottom,28px); }
 .top { display:flex; justify-content:space-between; align-items:center; padding-bottom:75px; font:12px 'DM Mono',monospace; text-transform:uppercase; letter-spacing:.04em; }
-.status { color:var(--accent); }
+.status { color:var(--accent); text-transform:none; }
 /* —— FolioFold 固定字标 ——
  * 与工作台顶栏 .st-brand 完全同款（Playfair Display 600 的 "Folio" + 强调色大写 "FOLD"）。
  * 这是产品标识，不是用户内容：刻意不挂任何 data-field / data-ve-item，
@@ -218,7 +218,7 @@ h1{font-size:clamp(40px,7vw,96px);line-height:1;letter-spacing:-.04em;font-weigh
 .project h4{font-size:16px;font-weight:500;margin:0;letter-spacing:-.005em}
 .project-role{font-size:13px;color:var(--muted);font-weight:400}
 .project-role i{font-style:normal;color:var(--muted);font-size:12px}
-.project-role .project-type{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);opacity:.85;margin:0 8px;border-left:1px solid var(--line);padding-left:8px}
+.project-role .project-type{font-size:11px;letter-spacing:.04em;color:var(--accent);opacity:.85;margin:0 8px;border-left:1px solid var(--line);padding-left:8px}
 
 .project-summary{font-size:15px;line-height:1.75;color:#45413b;margin:0 0 6px}
 .label{font-size:11px;letter-spacing:.06em;color:var(--muted);text-transform:uppercase}
@@ -346,7 +346,7 @@ h1{font-size:clamp(40px,7vw,96px);line-height:1;letter-spacing:-.04em;font-weigh
 }
 .exp-company{font-weight:500;font-size:17px;letter-spacing:-.005em}
 .exp-position{font-size:13px;color:var(--ink);opacity:.8}
-.exp-date{font:500 12px 'DM Mono',monospace;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;text-align:right}
+.exp-date{font:500 12px 'DM Mono',monospace;color:var(--muted);letter-spacing:.05em;text-align:right}
 .exp-body{padding:4px 0 24px 54px;border-left:1px dashed var(--line);margin-left:18px}
 .exp-main,.exp-media{min-width:0}
 /* ⚠ 2026-10-01：原来这里写死 max-width:680px —— 无图时右侧留一大片空白、正文提前折行
