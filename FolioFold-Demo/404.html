@@ -153,7 +153,9 @@ h1 { margin:0; max-width:900px; text-align:var(--editor-align,left); }
 
 @media(max-width:720px){
   .shell{padding:18px 20px var(--ff-page-bottom,28px)}
-  .top{padding-bottom:52px}
+  /* 2026-11-03：顶栏在手机上改成单行（品牌左 / 语言右），下方留白同步收回 —— 原 52px 是
+     给「顶栏换行后的两行结构」留的空间，单行后会把 hero 推得太低、中间一大片死白。 */
+  .top{padding-bottom:26px}
   .hero{min-height:0}
   .entry-btn{grid-template-columns:48px 1fr auto}
   .entry-panel{padding-left:0}
@@ -810,9 +812,17 @@ body.ve-embed .ve-free-layer{overflow:visible}
   padding:4px 8px;cursor:pointer;transition:color .15s ease,border-color .15s ease;
 }
 .top-btn:hover{color:var(--accent);border-color:var(--line)}
+/* —— 手机顶栏（2026-11-03 修复）——
+   真机 390px 实测：旧规则 `.top{flex-wrap:wrap}` + `.top-right{flex-direction:column}`
+   会把「Portfolio Editor / Publishing Tool + 语言切换」挤到品牌下一行并靠左，与品牌、
+   副标题堆在一起（顶栏实测 204px 高），下方 hero 还留出一大片死白。
+   手机端信息优先级：品牌 > 语言切换；副标题在 hero 区已经出现过一次，顶栏这份直接收起。
+   ≤720px 是单栏区间，与下方两栏断点（900px）互不影响。 */
 @media(max-width:720px){
-  .top-right{flex-direction:column;align-items:flex-end;gap:8px}
-  .top{flex-wrap:wrap}
+  .top{flex-wrap:nowrap;align-items:center;justify-content:space-between;gap:12px}
+  .top-brand{min-width:0;flex:1 1 auto}
+  .top-right{flex-direction:row;align-items:center;gap:10px;flex:0 0 auto}
+  .top-right .status{display:none}
 }
 
 /* —— Publish 面板 —— */
@@ -986,6 +996,33 @@ dialog.ff-pick-dialog>p{margin:0 0 12px;font-size:12px;line-height:1.6;color:var
    video 只加 max-width：它已有 max-height + object-fit，height:auto 反而会破坏等比缩放。 */
 body img{max-width:100%;height:auto}
 body video{max-width:100%}
+
+/* —— 「原地自由摆放」的媒体在单栏布局下回落到文档流（2026-11-03 修复：手机端 E 区视频压字）——
+   根因：自由摆放存的不是像素，是「相对浮层宽度的百分比」（实测 xPct≈62%、wPct≈38%）。
+   桌面是「文字栏 + 媒体栏」两栏，媒体落在右栏完全正确；但 ≤899px 两栏塌成单栏
+   （见本文件 min-width:900px 的 .has-media 网格），正文占满整行，媒体仍按 62% 落点
+   绝对定位 → 直接压在 Key words / Highlights 上（真机截图：视频盖住第 3 个 chip、
+   role 那行被截断）。
+   规则：单栏区间不再沿用自由坐标，媒体回到 DOM 里的本来位置（所属媒体区）按流式排版，
+   宽度跟随容器、高度按原始比例缩放，绝不横向溢出、不压字。
+   · 只在 ≤899px 生效 —— 桌面 / 平板横屏的两栏排版一个像素都不变；
+   · 断点是「布局是否已塌成单栏」，不是某一台手机的宽度，所以任何机型 / 折叠屏都适用；
+   · 视觉编辑器的手机画布跑的是同一份 CSS、同一断点，手机预览里同样生效；
+   · 必须 !important：自由层把 left/top/width/height 直接写在元素行内样式上。 */
+@media(max-width:899px){
+  .entry-panel [data-ff-free]{
+    position:static !important;
+    left:auto !important;
+    top:auto !important;
+    width:100% !important;
+    height:auto !important;
+    max-height:min(70vh,520px) !important;
+    margin:0 !important;
+    object-fit:contain;
+  }
+  /* 媒体区原本是右栏，塌成单栏后要和正文拉开间距（绝对定位时不需要，流式后必须有） */
+  .ai-project-body.has-media .ai-project-side{margin-top:22px}
+}
 
 /* —— Visual Editor 嵌入模式 ?ve=1 —— */
 /* 当本样式表作为 iframe 内容被 /visual-editor/ 加载时启用。
@@ -15194,8 +15231,13 @@ function renderCloudBaseSection(pb, cb){
       </div>
       <div id="cb-quota-box" class="publish-hint" style="display:none;border-left:3px solid #0a7d33"></div>
       ${notVerified}
-      <div class="publish-actions">
+      <p class="publish-desc"><b>发布后的地址名</b>（默认已带模板名，可改；只支持字母、数字、<code>-</code>、<code>_</code>）：</p>
+      <div class="publish-link-row" style="margin-top:4px">
+        <input class="publish-link-input" id="publink-deploy-path" placeholder="自动生成" value="">
         ${btn('发布到 CloudBase')}
+      </div>
+      <p class="publish-desc" id="publink-deploy-preview" style="font-size:12px;opacity:.75;margin-top:6px"></p>
+      <div class="publish-actions" style="margin-top:8px">
         <button class="publish-btn" id="publink-reconfig">重新配置</button>
       </div>
       ${cbLinksRowHtml()}
@@ -15585,6 +15627,57 @@ function hostingBaseOf(url){
   } catch (e) { return ''; }
 }
 
+// 主发布按钮的「地址名」输入框（publink-deploy-path）：首发布时让用户确认 / 修改子路径名，
+// 默认服务端会填 FolioFold-<模板名>。自愈重渲会重建整个面板 —— 这里用全局草稿恢复用户已填的名字，
+// 否则重渲会把自定义名清空（2026-11-03 修复：发布面板经常自愈重渲）。
+function wireDeployPathInput(provider, baseUrl){
+  const inp = document.getElementById('publink-deploy-path');
+  if(!inp) return;
+  const prev = document.getElementById('publink-deploy-preview');
+  const draftKey = '__ffDeployPathDraft_' + provider;
+  if (window[draftKey]) inp.value = window[draftKey];
+  const paint = () => {
+    if(!prev) return;
+    const v = (inp.value||'').trim().replace(/^\/+|\/+$/g,'');
+    prev.textContent = v
+      ? ('将发布到：' + (baseUrl||'') + v + '/')
+      : '留空将使用自动生成的名字（默认 FolioFold-当前模板名）。';
+  };
+  if(!inp.value){
+    try{
+      const q='?provider='+encodeURIComponent(provider)+'&tpl='+encodeURIComponent(ffCurTpl());
+      fetch('/api/deploy/suggest-path'+q,{cache:'no-store'}).then(x=>x.json()).then(r=>{
+        if(r&&r.ok&&r.suggested&&!inp.value){ inp.value=r.suggested; inp.placeholder=r.suggested; paint(); }
+      }).catch(()=>{});
+    }catch(e){}
+  }
+  inp.addEventListener('input', () => { window[draftKey] = inp.value; paint(); });
+  paint();
+}
+
+// 从已有 GitHub 发布记录推断站点根：https://<user>.github.io/<repo>/
+function ghBaseFromDeployments(deps, login){
+  for(const d of (deps||[])){
+    const u=String(d.url||'');
+    const m=u.match(/^https?:\/\/([^\/]+)\.github\.io\//);
+    if(m){
+      const after=u.slice(u.indexOf('.github.io/')+'.github.io/'.length);
+      const repo=after.split('/')[0];
+      if(repo) return 'https://'+m[1]+'.github.io/'+repo+'/';
+    }
+  }
+  return login ? ('https://'+login+'.github.io/FolioFoldPages/') : 'https://<你的账号>.github.io/FolioFoldPages/';
+}
+
+// 从已有 CloudBase 发布记录推断托管根域名（cloudPath 是域名下的虚拟子路径）。
+function cbBaseFromDeployments(deps){
+  for(const d of (deps||[])){
+    const u=String(d.url||'').replace(/\/$/,'');
+    if(u && /^https?:\/\//.test(u)) return u + '/';
+  }
+  return '';
+}
+
 // ===== 发布面板「用户正在输入」守卫（修复自愈重渲清空输入 / 打断拼音）=====
 // 探针陈旧 / 大媒体上传时，发布面板会整面板重渲（自愈刷新）。若用户当时正在输入框打字
 // （尤其中文拼音组合输入），整面板重渲会清空已输入内容、打断拼音。
@@ -15699,8 +15792,13 @@ async function renderGithubSection(pb, gh){
         <div class="publish-status-row"><span class="publish-status-label">账号</span><span class="publish-tag">${esc(status.login)}</span></div>
       </div>
       ${reauthWarn}${capWarn}
-      <div class="publish-actions">
+      <p class="publish-desc"><b>发布后的地址名</b>（默认已带模板名，可改；只支持字母、数字、<code>-</code>、<code>_</code>）：</p>
+      <div class="publish-link-row" style="margin-top:4px">
+        <input class="publish-link-input" id="publink-deploy-path" placeholder="自动生成" value="">
         ${deployBtnHtml('发布 ' + ffCurTplName())}
+      </div>
+      <p class="publish-desc" id="publink-deploy-preview" style="font-size:12px;opacity:.75;margin-top:6px"></p>
+      <div class="publish-actions" style="margin-top:8px">
         <button class="publish-btn" id="publink-github-adv">开发者选项</button>
         <button class="publish-btn" id="publink-disconnect">断开 GitHub</button>
       </div>
@@ -15911,7 +16009,10 @@ function wirePublicLink(dialog, st){
       // 「发布到新地址」时以用户下拉里选的模板为准 —— 不再默默用"当前模板"。
       const tplId = String(tplOverride || '').trim() || ffCurTpl();
       const body = { provider, mode, tpl: tplId };
-      if (mode === 'new' && path) body.path = path;
+      // ⚠ 2026-11-03：主发布按钮现在也会带「地址名」(publink-deploy-path)。
+      // 任何 mode 下只要给了 path 都原样下发（'update' 时服务端按其 force_path 落到该地址，
+      // 不再去猜"这个模板上次发到哪"）；空 = 让服务端自动分配默认名 FolioFold-<模板名>。
+      if (path) body.path = path;
       const r=await fetch('/api/deploy/public?tpl=' + encodeURIComponent(tplId), {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(x=>x.json());
       if(!r.ok){
         if(r.busy) throw Error(r.error||'上一次发布还在进行中，请等它结束再点（避免两次发布互相覆盖）。');
@@ -15941,10 +16042,26 @@ function wirePublicLink(dialog, st){
   };
 
   const deploy=document.getElementById('publink-deploy');
-  if(deploy) deploy.onclick=()=>{
-    const provider = window.__pubProvider==='cloudbase' ? 'cloudbase' : 'github';
-    runDeploy(provider, 'update', '', deploy);
-  };
+  if(deploy){
+    const depProvider = window.__pubProvider==='cloudbase' ? 'cloudbase' : 'github';
+    // 预填 + 恢复「地址名」输入框（首发布时让用户确认/修改子路径名）。
+    const _depProv = st.providers || {};
+    const _gh = _depProv.github || {};
+    const _cb = _depProv.cloudbase || {};
+    const _base = depProvider==='github'
+      ? ghBaseFromDeployments(_gh.deployments, _gh.login)
+      : cbBaseFromDeployments(_cb.deployments);
+    wireDeployPathInput(depProvider, _base);
+    deploy.onclick=()=>{
+      const pathInp = document.getElementById('publink-deploy-path');
+      let pv = pathInp ? (pathInp.value||'').trim().replace(/^\/+|\/+$/g,'') : '';
+      if(pv && !/^[A-Za-z0-9_-]+$/.test(pv)){
+        if(typeof toastInCanvas==='function') toastInCanvas('路径名只能用字母、数字、- 和 _');
+        return;
+      }
+      runDeploy(depProvider, 'update', pv, deploy);
+    };
+  }
 
   // 「另外发布一个链接」：不覆盖当前地址，另开一个子路径挂同一套内容。
   const depProvider = window.__pubProvider==='cloudbase' ? 'cloudbase' : 'github';
