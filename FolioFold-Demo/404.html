@@ -15615,7 +15615,10 @@ function wireNewDeploy(host, provider, curTpl, hostingBase, onGo){
   const inp = document.getElementById('publink-newdep-path');
   const prev = document.getElementById('publink-newdep-preview');
   const go = document.getElementById('publink-newdep-go');
+  const sel = document.getElementById('publink-newdep-tpl');
   let suggested = '';
+  let suggestedFor = '';   // suggested 是按哪个模板算出来的
+  let reqSeq = 0;          // 防快速切换模板时旧请求晚到、覆盖新模板的建议名
   const paint = () => {
     if (!prev) return;
     const v = (inp && inp.value || '').trim().replace(/^\/+|\/+$/g, '');
@@ -15623,20 +15626,37 @@ function wireNewDeploy(host, provider, curTpl, hostingBase, onGo){
       ? ('将发布到：' + (hostingBase || '') + v + '/')
       : (suggested ? ('留空将使用自动生成的名字：' + suggested) : '');
   };
-  // 打开折叠时才去问服务端建议名（不打开就不打扰）。
-  box.addEventListener('toggle', async () => {
-    if (!box.open || suggested) { paint(); return; }
+  // ⚠ 2026-11-04：建议名必须跟「下拉里当前选中的模板」走。
+  //   旧实现只在展开时按 curTpl（当前模板）取一次并缓存，用户改选模板后不重算，
+  //   于是选 FolioFold 仍显示 FolioFold-Main-2（Main 已被占用后的补号）。
+  const fetchSuggest = async (tplId) => {
+    const want = String(tplId || 'main');
+    const my = ++reqSeq;
     try {
-      const q = '?provider=' + encodeURIComponent(provider) + '&tpl=' + encodeURIComponent(curTpl || 'main');
+      const q = '?provider=' + encodeURIComponent(provider) + '&tpl=' + encodeURIComponent(want);
       const r = await fetch('/api/deploy/suggest-path' + q, { cache: 'no-store' }).then(x => x.json());
-      if (r && r.ok && r.suggested) { suggested = r.suggested; if (inp) inp.placeholder = r.suggested; }
+      if (my !== reqSeq) return;   // 已有更新的请求，丢弃这次旧结果
+      if (r && r.ok && r.suggested) {
+        suggested = r.suggested; suggestedFor = want;
+        if (inp) inp.placeholder = r.suggested;
+      }
     } catch (e) {}
     paint();
+  };
+  // 打开折叠时才去问服务端建议名（不打开就不打扰）。
+  box.addEventListener('toggle', async () => {
+    if (!box.open) { paint(); return; }
+    const tplNow = sel ? String(sel.value || '').trim() : (curTpl || 'main');
+    if (suggestedFor === tplNow && suggested) { paint(); return; }
+    await fetchSuggest(tplNow);
+  });
+  if (sel) sel.addEventListener('change', () => {
+    // 用户改选模板：按新模板立刻重算，不再沿用上一个模板的名字。
+    fetchSuggest(String(sel.value || '').trim());
   });
   if (inp) inp.addEventListener('input', paint);
   if (go) go.onclick = () => {
     const v = (inp && inp.value || '').trim().replace(/^\/+|\/+$/g, '');
-    const sel = document.getElementById('publink-newdep-tpl');
     const tplSel = sel ? String(sel.value || '').trim() : '';
     if (!tplSel) { if (typeof toastInCanvas === 'function') toastInCanvas('请先选择要发布哪个模板'); return; }
     if (go.dataset.busy) return; go.dataset.busy = '1';
